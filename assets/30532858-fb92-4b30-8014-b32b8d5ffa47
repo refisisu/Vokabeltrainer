@@ -1,0 +1,527 @@
+// vt-screens.jsx — all non-quiz screens.
+const { useState: useS, useEffect: useE, useRef: useR } = React;
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 11) return "Guten Morgen";
+  if (h < 18) return "Hallo";
+  return "Guten Abend";
+}
+
+/* ---------------- THEME SHEET ---------------- */
+function ThemeSheet({ current, onPick, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 40, background: "rgba(0,0,0,.35)",
+      display: "flex", alignItems: "flex-end", animation: "popIn .2s var(--ease)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", background: "var(--surface)",
+        borderRadius: "var(--r-xl) var(--r-xl) 0 0", padding: "22px 20px calc(24px + env(safe-area-inset-bottom))",
+        boxShadow: "0 -10px 40px rgba(0,0,0,.2)" }}>
+        <div style={{ width: 40, height: 5, background: "var(--border)", borderRadius: 99, margin: "0 auto 16px" }} />
+        <div className="h2" style={{ marginBottom: 4 }}>Theme wählen</div>
+        <div className="dim" style={{ fontSize: 14, marginBottom: 16 }}>Ändert nur die Optik – nicht die Aufgaben.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {THEMES.map(t => (
+            <button key={t.id} onClick={() => onPick(t.id)} className={"theme-" + t.id}
+              style={{ textAlign: "left", padding: 16, borderRadius: "var(--r-md)", cursor: "pointer",
+                border: `2px solid ${current === t.id ? "var(--accent)" : "var(--border)"}`,
+                background: "var(--app-bg)", position: "relative", overflow: "hidden" }}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--primary)" }} />
+                <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--accent)" }} />
+                <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)" }} />
+              </div>
+              <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 17, color: "var(--text)" }}>{t.name}</div>
+              <div className="dim" style={{ fontSize: 12.5 }}>{t.sub}</div>
+              {current === t.id && <div style={{ position: "absolute", top: 12, right: 12, color: "var(--accent)" }}><Icon name="check" size={20} /></div>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- ONBOARDING ---------------- */
+function Onboarding({ onDone }) {
+  const [step, setStep] = useS(0);
+  const [name, setName] = useS("");
+  const [theme, setTheme] = useS("city");
+  const [language, setLanguage] = useS("en");
+  useE(() => { document.body.className = "theme-" + theme; }, [theme]);
+
+  return (
+    <div className="scroll" style={{ display: "flex", flexDirection: "column", padding: "0 24px 28px", minHeight: "100%" }}>
+      {step === 0 && (
+        <div className="q-enter" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 18, paddingTop: 40 }}>
+          <Voki mood="happy" size={150} float />
+          <div>
+            <div className="h1" style={{ fontSize: 34 }}>Hi, ich bin Voki!</div>
+            <div className="dim" style={{ fontSize: 17, marginTop: 10, lineHeight: 1.5, maxWidth: 320 }}>
+              Zusammen bringen wir deine Vokabeln zum Sitzen. Jeden Tag ein paar Minuten – das reicht.
+            </div>
+          </div>
+          <button className="btn btn-primary btn-block" style={{ marginTop: 12 }} onClick={() => setStep(1)}>Los geht's <Icon name="arrowR" size={20} /></button>
+        </div>
+      )}
+      {step === 1 && (
+        <div className="q-enter" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 22, paddingTop: 30 }}>
+          <Voki mood="idle" size={92} />
+          <div>
+            <div className="h1">Wie heißt du?</div>
+            <div className="dim" style={{ fontSize: 16, marginTop: 8 }}>Nur für deinen persönlichen Rekord. Kannst du auch überspringen.</div>
+          </div>
+          <input className="field" value={name} maxLength={16} onChange={e => setName(e.target.value)} placeholder="Dein Name" autoFocus />
+          <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+            <button className="btn btn-ghost" style={{ flex: "0 0 auto" }} onClick={() => setStep(2)}>Überspringen</button>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setStep(2)}>Weiter <Icon name="arrowR" size={20} /></button>
+          </div>
+        </div>
+      )}
+      {step === 2 && (
+        <div className="q-enter" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 20, paddingTop: 30 }}>
+          <div>
+            <div className="h1">Wähl deinen Look</div>
+            <div className="dim" style={{ fontSize: 16, marginTop: 8 }}>Du kannst das Theme jederzeit oben rechts wechseln.</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {THEMES.map(t => {
+              const active = theme === t.id;
+              return (
+                <button key={t.id} onClick={() => setTheme(t.id)}
+                  style={{ textAlign: "left", padding: 16, borderRadius: "var(--r-md)", cursor: "pointer",
+                    border: `2px solid ${active ? "var(--accent)" : "var(--border)"}`, background: "var(--surface)", position: "relative" }}>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: 7, background: "var(--primary)" }} />
+                    <span style={{ width: 24, height: 24, borderRadius: 7, background: "var(--accent)" }} />
+                  </div>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 16 }}>{t.name}</div>
+                  <div className="dim" style={{ fontSize: 12 }}>{t.sub}</div>
+                  {active && <div style={{ position: "absolute", top: 10, right: 10, color: "var(--accent)" }}><Icon name="check" size={18} /></div>}
+                </button>
+              );
+            })}
+          </div>
+          <button className="btn btn-primary btn-block" style={{ marginTop: 8 }} onClick={() => setStep(3)}>
+            Weiter <Icon name="arrowR" size={20} />
+          </button>
+        </div>
+      )}
+      {step === 3 && (
+        <div className="q-enter" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 20, paddingTop: 30 }}>
+          <div>
+            <div className="h1">Welche Sprache?</div>
+            <div className="dim" style={{ fontSize: 16, marginTop: 8 }}>Englisch ist direkt gefüllt. Französisch kannst du per CSV importieren.</div>
+          </div>
+          <div style={{ display: "grid", gap: 12 }}>
+            {LANGUAGES.map(l => {
+              const active = language === l.id;
+              return (
+                <button key={l.id} onClick={() => setLanguage(l.id)}
+                  style={{ textAlign: "left", padding: 16, borderRadius: "var(--r-md)", cursor: "pointer",
+                    border: `2px solid ${active ? "var(--accent)" : "var(--border)"}`, background: "var(--surface)", position: "relative" }}>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 18 }}>{l.name}</div>
+                  <div className="dim" style={{ fontSize: 13 }}>{l.id === "en" ? TOTAL_WORDS + " Beispielwörter" : "Eigene CSV-Liste"}</div>
+                  {active && <div style={{ position: "absolute", top: 14, right: 14, color: "var(--accent)" }}><Icon name="check" size={20} /></div>}
+                </button>
+              );
+            })}
+          </div>
+          <button className="btn btn-primary btn-block" style={{ marginTop: 8 }} onClick={() => onDone({ name: name.trim(), theme, language })}>
+            Fertig – los üben! <Icon name="spark" size={20} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- MASTERY BAR ---------------- */
+function MasteryOverview({ state }) {
+  const dist = masteryDistribution(state);
+  const cols = ["var(--text-dim)", "var(--accent-2)", "var(--accent)", "var(--primary)", "var(--correct)"];
+  const labels = ["Neu", "Geübt", "Sicher", "Stark", "Gemeistert"];
+  const total = TOTAL_WORDS || 1;
+  return (
+    <div className="card" style={{ padding: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+        <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 17 }}>Dein Wortschatz</div>
+        <div className="dim" style={{ fontSize: 13 }}>{TOTAL_WORDS} Wörter</div>
+      </div>
+      <div style={{ display: "flex", height: 14, borderRadius: 99, overflow: "hidden", background: "var(--surface-3)", marginBottom: 14 }}>
+        {dist.map((c, i) => c > 0 && <div key={i} style={{ width: (c / total * 100) + "%", background: cols[i], transition: "width .4s var(--ease)" }} />)}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+        {labels.map((l, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: cols[i] }} />
+            <span style={{ color: "var(--text-dim)" }}>{l}</span>
+            <span style={{ marginLeft: "auto", fontWeight: 700, fontFamily: "var(--font-display)" }}>{dist[i]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- HOME ---------------- */
+function Home({ state, go, onOpenTheme }) {
+  const hasWords = TOTAL_WORDS > 0;
+  const dueCount = hasWords ? Math.min(15, dueWords(state).length || TOTAL_WORDS) : 0;
+  return (
+    <div className="scroll" style={{ padding: "6px 18px 30px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 2px 18px" }}>
+        <div style={{ flex: 1 }}>
+          <div className="dim" style={{ fontSize: 14 }}>{greeting()}{state.name ? "," : "!"}</div>
+          {state.name && <div className="h2" style={{ fontSize: 24 }}>{state.name}</div>}
+          <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>{languageLabel(state.language)}</div>
+        </div>
+        <button onClick={onOpenTheme} aria-label="Theme" style={{ width: 44, height: 44, borderRadius: 14, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
+          <span style={{ width: 13, height: 13, borderRadius: 4, background: "var(--primary)" }} />
+          <span style={{ width: 13, height: 13, borderRadius: 4, background: "var(--accent)" }} />
+        </button>
+        <IconBtn name="gear" onClick={() => go("settings")} label="Einstellungen" />
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
+        <StatChip icon="flame" value={state.streak + " Tage"} color="#F2701A" label="Streak" />
+        <StatChip icon="bolt" value={state.xp + " XP"} color="var(--accent)" label="Erfahrungspunkte" />
+      </div>
+
+      {/* HERO start card */}
+      <div className="card" style={{ padding: 20, position: "relative", overflow: "hidden", marginBottom: 14,
+        background: "linear-gradient(140deg, color-mix(in oklab,var(--accent) 16%, var(--surface)), var(--surface) 70%)" }}>
+        <div style={{ position: "absolute", right: -10, bottom: -18, opacity: .95 }}><Voki mood="happy" size={120} float /></div>
+        <div style={{ maxWidth: 220 }}>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>Heutige Übung</div>
+          <div className="h1" style={{ fontSize: 27, marginBottom: 6 }}>{hasWords ? dueCount + " Wörter dran" : "CSV importieren"}</div>
+          <div className="dim" style={{ fontSize: 14.5, lineHeight: 1.45, marginBottom: 16 }}>{hasWords ? "Ca. 5 Minuten. Frisch für dich zusammengestellt." : "Für diese Sprache ist noch keine Liste gespeichert."}</div>
+          <button className="btn btn-primary" disabled={!hasWords} style={{ paddingInline: 26 }} onClick={() => go("session")}><Icon name="play" size={18} /> Session starten</button>
+        </div>
+      </div>
+
+      <MasteryOverview state={state} />
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
+        <TileBtn icon="stethoscope" title="Test-Modus" sub="Alle Wörter prüfen" onClick={() => go("test")} />
+        <TileBtn icon="list" title="Wortschatz" sub="Alle Vokabeln" onClick={() => go("overview")} />
+        <TileBtn icon="trophy" title="Bestenliste" sub="Letzte Sessions" onClick={() => go("leaderboard")} />
+        <TileBtn icon="gear" title="Einstellungen" sub="Theme & mehr" onClick={() => go("settings")} />
+      </div>
+    </div>
+  );
+}
+function TileBtn({ icon, title, sub, onClick }) {
+  return (
+    <button onClick={onClick} className="card" style={{ textAlign: "left", padding: 16, cursor: "pointer",
+      display: "flex", flexDirection: "column", gap: 10, background: "var(--surface)" }}>
+      <span style={{ width: 38, height: 38, borderRadius: 11, background: "var(--surface-2)", color: "var(--accent)",
+        display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name={icon} size={21} /></span>
+      <div>
+        <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 16 }}>{title}</div>
+        <div className="dim" style={{ fontSize: 12.5 }}>{sub}</div>
+      </div>
+    </button>
+  );
+}
+
+/* ---------------- SESSION RESULT ---------------- */
+function Result({ result, mode, state, go, tweaks }) {
+  const pct = result.total ? Math.round(result.score / result.total * 100) : 0;
+  const wrong = result.wrongWords.map(id => byId[id]).filter(Boolean);
+  const [confetti] = useS(() => tweaks.feedbackStyle !== "aus" && pct >= 60);
+  useE(() => { if (pct >= 80) tone("win", tweaks.sound); }, []);
+  const headline = pct >= 90 ? "Stark gemacht!" : pct >= 60 ? "Gut gemacht!" : "Weiter dranbleiben!";
+  return (
+    <div className="scroll" style={{ padding: "0 20px 28px", position: "relative" }}>
+      {confetti && <Confetti count={90} duration={900} />}
+      <div className="q-enter" style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", paddingTop: 26, gap: 6 }}>
+        <Voki mood={pct >= 60 ? "cheer" : "idle"} size={120} />
+        <div className="h1" style={{ fontSize: 30 }}>{headline}</div>
+        <div className="dim" style={{ fontSize: 16 }}>Session abgeschlossen</div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, margin: "22px 0 16px" }}>
+        <Stat big={pct + "%"} label="Richtig" />
+        <Stat big={"+" + result.xp} label="XP" icon="bolt" />
+        <Stat big={state.streak} label="Tage Streak" icon="flame" />
+      </div>
+
+      {wrong.length > 0 ? (
+        <div className="card" style={{ padding: 18 }}>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>Diese Wörter übst du noch</div>
+          <div className="dim" style={{ fontSize: 13.5, marginBottom: 12 }}>Sie kommen bald wieder dran.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {wrong.map(w => (
+              <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--surface-2)", borderRadius: 12 }}>
+                <span style={{ fontWeight: 600 }}>{w.en}</span>
+                <span className="dim" style={{ fontSize: 14 }}>→ {w.de}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 20, textAlign: "center" }}>
+          <div style={{ fontSize: 15 }}>Alles richtig – kein Wort zum Nachüben! 🎉</div>
+        </div>
+      )}
+
+      <button className="btn btn-primary btn-block" style={{ marginTop: 18 }} onClick={() => go("home")}><Icon name="home" size={20} /> Zur Startseite</button>
+      <button className="btn btn-ghost btn-block" style={{ marginTop: 10 }} onClick={() => go("session")}>Noch eine Runde</button>
+    </div>
+  );
+}
+function Stat({ big, label, icon }) {
+  return (
+    <div className="card" style={{ padding: "16px 8px", textAlign: "center" }}>
+      <div className="display" style={{ fontSize: 26, fontWeight: 700, display: "flex", justifyContent: "center", alignItems: "center", gap: 4 }}>
+        {icon && <span style={{ color: "var(--accent)", display: "inline-flex" }}><Icon name={icon} size={18} /></span>}{big}
+      </div>
+      <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>{label}</div>
+    </div>
+  );
+}
+
+/* ---------------- TEST DIAGNOSE ---------------- */
+function Diagnose({ result, go, tweaks }) {
+  const pct = result.total ? Math.round(result.score / result.total * 100) : 0;
+  const wrong = result.wrongWords.map(id => byId[id]).filter(Boolean);
+  return (
+    <div className="scroll" style={{ padding: "0 20px 28px" }}>
+      <div className="q-enter" style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", paddingTop: 26, gap: 6 }}>
+        <span style={{ color: "var(--accent-2)" }}><Icon name="stethoscope" size={50} /></span>
+        <div className="h1" style={{ fontSize: 28 }}>Diagnose</div>
+        <div className="dim" style={{ fontSize: 15 }}>Alle {result.total} Wörter einmal geprüft</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, margin: "20px 0 16px" }}>
+        <Stat big={pct + "%"} label="Quote" />
+        <Stat big={result.score} label="Richtig" />
+        <Stat big={result.total - result.score} label="Falsch" />
+      </div>
+      <div className="card" style={{ padding: 18 }}>
+        <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>Üben: {wrong.length} Wörter</div>
+        <div className="dim" style={{ fontSize: 13.5, marginBottom: 12 }}>Das saß noch nicht sicher.</div>
+        {wrong.length === 0 ? <div style={{ fontSize: 15 }}>Perfekt – alles richtig! 🏆</div> : (
+          <div style={{ display: "grid", gap: 7, maxHeight: 320, overflowY: "auto" }}>
+            {wrong.map(w => (
+              <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "var(--wrong-soft)", borderRadius: 10 }}>
+                <span style={{ fontWeight: 600 }}>{w.en}</span><span className="dim" style={{ fontSize: 13.5 }}>→ {w.de}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <button className="btn btn-primary btn-block" style={{ marginTop: 18 }} onClick={() => go("home")}><Icon name="home" size={20} /> Zur Startseite</button>
+    </div>
+  );
+}
+
+/* ---------------- VOKABEL ÜBERSICHT ---------------- */
+function Overview({ state, go }) {
+  const [lvl, setLvl] = useS(1);
+  const [query, setQuery] = useS("");
+  const dist = masteryDistribution(state);
+  let words = VOCAB.filter(w => getLevel(state, w.id) === lvl);
+  if (query.trim()) {
+    const ql = query.toLowerCase();
+    words = VOCAB.filter(w => w.en.toLowerCase().includes(ql) || w.de.toLowerCase().includes(ql));
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <TopBar left={<IconBtn name="back" onClick={() => go("home")} label="Zurück" />} title="Wortschatz" right={<span />} />
+      <div style={{ padding: "4px 18px 10px" }}>
+        <input className="field" style={{ fontSize: 16, padding: "12px 16px" }} value={query} onChange={e => setQuery(e.target.value)} placeholder="Suchen…" />
+      </div>
+      {!query.trim() && (
+        <div style={{ display: "flex", gap: 8, padding: "0 18px 10px", overflowX: "auto", scrollbarWidth: "none" }}>
+          {[1,2,3,4,5].map(i => (
+            <button key={i} onClick={() => setLvl(i)} style={{ flex: "0 0 auto", padding: "8px 14px", borderRadius: 99, cursor: "pointer",
+              border: "1px solid var(--border)", fontWeight: 600, fontSize: 13.5, fontFamily: "var(--font-ui)",
+              background: lvl === i ? "var(--accent)" : "var(--surface)", color: lvl === i ? "#fff" : "var(--text-dim)" }}>
+              {["Neu","Geübt","Sicher","Stark","Gemeistert"][i-1]} · {dist[i-1]}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="scroll" style={{ padding: "4px 18px 28px" }}>
+        {words.length === 0 && <div className="dim" style={{ textAlign: "center", padding: 40 }}>Keine Wörter hier.</div>}
+        <div style={{ display: "grid", gap: 8 }}>
+          {words.map(w => (
+            <div key={w.id} className="card" style={{ padding: "13px 15px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 16 }}>{w.en}</div>
+                <div className="dim" style={{ fontSize: 13.5 }}>{w.de}</div>
+              </div>
+              <LevelPill level={getLevel(state, w.id)} small />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- BESTENLISTE ---------------- */
+function Leaderboard({ state, go }) {
+  const best = state.history.length ? Math.max(...state.history.map(h => h.pct)) : 0;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <TopBar left={<IconBtn name="back" onClick={() => go("home")} label="Zurück" />} title="Bestenliste" right={<span />} />
+      <div className="scroll" style={{ padding: "8px 18px 28px" }}>
+        {state.history.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "50px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+            <Voki mood="idle" size={100} />
+            <div className="dim" style={{ fontSize: 15 }}>Noch keine Sessions. Leg los – dann erscheint dein Rekord hier!</div>
+          </div>
+        ) : (
+          <>
+            <div className="card" style={{ padding: 18, display: "flex", alignItems: "center", gap: 14, marginBottom: 16,
+              background: "linear-gradient(120deg, color-mix(in oklab,var(--primary) 14%, var(--surface)), var(--surface))" }}>
+              <span style={{ color: "var(--primary)" }}><Icon name="trophy" size={34} /></span>
+              <div>
+                <div className="dim" style={{ fontSize: 13 }}>{state.name ? state.name + "s" : "Dein"} persönlicher Rekord</div>
+                <div className="display" style={{ fontSize: 30, fontWeight: 700 }}>{best}% richtig</div>
+              </div>
+            </div>
+            <div className="eyebrow" style={{ margin: "4px 2px 10px" }}>Letzte {state.history.length} Sessions</div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {state.history.map((h, i) => (
+                <div key={i} className="card" style={{ padding: "13px 15px", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontFamily: "var(--font-display)", fontSize: 14, color: "var(--text-dim)" }}>{i + 1}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>{h.score}/{h.total} richtig {h.mode === "test" && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-2)", marginLeft: 4 }}>· TEST</span>}</div>
+                    <div className="dim" style={{ fontSize: 12.5 }}>{fmtDate(h.date)}</div>
+                  </div>
+                  <div className="display" style={{ fontSize: 20, fontWeight: 700, color: h.pct >= 60 ? "var(--correct)" : "var(--wrong)" }}>{h.pct}%</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+function fmtDate(d) {
+  try { const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("de-DE", { day: "2-digit", month: "short" }); } catch (e) { return d; }
+}
+
+/* ---------------- SETTINGS ---------------- */
+function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
+  const [name, setName] = useS(state.name);
+  const [resetText, setResetText] = useS("");
+  const csvRef = useR(null);
+  const backupRef = useR(null);
+  const [msg, setMsg] = useS("");
+  const saveName = () => setState(s => ({ ...s, name: name.trim() }));
+  const curTheme = THEMES.find(t => t.id === state.theme);
+  const readFile = (file, cb) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => cb(String(reader.result || ""));
+    reader.readAsText(file);
+  };
+  const importCsv = (file) => readFile(file, (text) => {
+    try {
+      const count = importVocabularyCsv(state.language, text);
+      setMsg(count + " Vokabeln für " + languageLabel(state.language) + " importiert.");
+      setState(s => ({ ...s }));
+    } catch (e) {
+      setMsg(e.message || "CSV konnte nicht gelesen werden.");
+    }
+  });
+  const importBackup = (file) => readFile(file, (text) => {
+    if (!window.confirm("Backup importieren? Der aktuelle Stand wird überschrieben.")) return;
+    try {
+      restoreBackupText(text);
+      window.location.reload();
+    } catch (e) {
+      setMsg(e.message || "Backup konnte nicht gelesen werden.");
+    }
+  });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <TopBar left={<IconBtn name="back" onClick={() => go("home")} label="Zurück" />} title="Einstellungen" right={<span />} />
+      <div className="scroll" style={{ padding: "8px 18px 30px", display: "flex", flexDirection: "column", gap: 18 }}>
+        <Section title="Profil">
+          <label className="dim" style={{ fontSize: 13, fontWeight: 600 }}>Name</label>
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <input className="field" style={{ fontSize: 16, padding: "12px 16px" }} value={name} maxLength={16} onChange={e => setName(e.target.value)} onBlur={saveName} placeholder="Dein Name" />
+          </div>
+        </Section>
+
+        <Section title="Sprache">
+          {LANGUAGES.map(l => (
+            <Row key={l.id} label={l.name} value={state.language === l.id ? "Aktiv" : null}
+              onClick={() => setState(s => switchLanguage(s, l.id))} chevron />
+          ))}
+        </Section>
+
+        <Section title="Darstellung">
+          <Row label="Theme" value={curTheme ? curTheme.name : "—"} onClick={onOpenTheme} chevron />
+          <Toggle label="Sound-Effekte" sub="Töne bei richtig/falsch" on={tweaks.sound} onToggle={() => setTweak("sound", !tweaks.sound)} />
+        </Section>
+
+        <Section title="Lernen">
+          <Row label="Wortschatz ansehen" onClick={() => go("overview")} chevron />
+          <Row label="Test-Modus starten" onClick={() => go("test")} chevron />
+        </Section>
+
+        <Section title="Daten">
+          <input ref={csvRef} type="file" accept=".csv,text/csv" style={{ display: "none" }}
+            onChange={e => { importCsv(e.target.files?.[0]); e.target.value = ""; }} />
+          <input ref={backupRef} type="file" accept=".json,application/json" style={{ display: "none" }}
+            onChange={e => { importBackup(e.target.files?.[0]); e.target.value = ""; }} />
+          <Row label={"CSV importieren (" + languageShort(state.language) + ")"} value={TOTAL_WORDS + " Wörter"} onClick={() => csvRef.current?.click()} chevron />
+          <Row label="Backup exportieren" onClick={downloadBackup} chevron />
+          <Row label="Backup importieren" onClick={() => backupRef.current?.click()} chevron />
+          {msg && <div className="dim" style={{ fontSize: 13.5, lineHeight: 1.45, padding: "8px 2px 14px" }}>{msg}</div>}
+          <div className="dim" style={{ fontSize: 13.5, lineHeight: 1.5, marginBottom: 10 }}>
+            Setzt Lernstand, XP, Streak und Bestenliste zurück. Zum Bestätigen <b style={{ color: "var(--text)" }}>reset</b> eintippen.
+          </div>
+          <input className="field" style={{ fontSize: 16, padding: "12px 16px" }} value={resetText} onChange={e => setResetText(e.target.value)} placeholder="reset" autoCapitalize="off" />
+          <button className="btn btn-block" disabled={resetText.trim().toLowerCase() !== "reset"}
+            onClick={() => { resetAll(); window.location.reload(); }}
+            style={{ marginTop: 10, background: resetText.trim().toLowerCase() === "reset" ? "var(--wrong)" : "var(--surface-2)",
+              color: resetText.trim().toLowerCase() === "reset" ? "#fff" : "var(--text-dim)" }}>
+            Alles zurücksetzen
+          </button>
+        </Section>
+
+        <div className="dim" style={{ textAlign: "center", fontSize: 12, marginTop: 4 }}>Vokabeltrainer · {languageLabel(state.language)} · {TOTAL_WORDS} Wörter · v2</div>
+      </div>
+    </div>
+  );
+}
+function Section({ title, children }) {
+  return (
+    <div>
+      <div className="eyebrow" style={{ marginBottom: 10, marginLeft: 2 }}>{title}</div>
+      <div className="card" style={{ padding: 16, display: "flex", flexDirection: "column" }}>{children}</div>
+    </div>
+  );
+}
+function Row({ label, value, onClick, chevron }) {
+  return (
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 2px", background: "none", border: "none", cursor: "pointer", color: "var(--text)", fontFamily: "var(--font-ui)", fontSize: 16, width: "100%", textAlign: "left" }}>
+      <span style={{ flex: 1, fontWeight: 500 }}>{label}</span>
+      {value && <span className="dim" style={{ fontSize: 15 }}>{value}</span>}
+      {chevron && <span className="dim"><Icon name="chevron" size={18} /></span>}
+    </button>
+  );
+}
+function Toggle({ label, sub, on, onToggle }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 2px" }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 500, fontSize: 16 }}>{label}</div>
+        {sub && <div className="dim" style={{ fontSize: 12.5 }}>{sub}</div>}
+      </div>
+      <button onClick={onToggle} aria-pressed={on} style={{ width: 50, height: 30, borderRadius: 99, border: "none", cursor: "pointer",
+        background: on ? "var(--accent)" : "var(--surface-3)", position: "relative", transition: "background .2s" }}>
+        <span style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 24, height: 24, borderRadius: 99, background: "#fff", transition: "left .2s var(--ease)", boxShadow: "0 1px 3px rgba(0,0,0,.3)" }} />
+      </button>
+    </div>
+  );
+}
+
+Object.assign(window, { Onboarding, ThemeSheet, Home, Result, Diagnose, Overview, Leaderboard, Settings });

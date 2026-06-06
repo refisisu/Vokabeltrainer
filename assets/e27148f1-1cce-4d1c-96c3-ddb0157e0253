@@ -1,0 +1,448 @@
+// vt-data.jsx — vocab enrichment, Leitner logic, persistence, session builder.
+// Consumes window.RAW_VOCAB (from vt-vocab.js).
+
+// --- Curated example sentences (English target word blanked for Lückentext) ---
+// Words without an example fall back to Multiple Choice.
+const EXAMPLES = {
+  "chocolate": "I love to eat chocolate after dinner.",
+  "strawberry": "A strawberry is small, red and sweet.",
+  "supermarket": "We buy all our food at the supermarket.",
+  "milk": "She drinks a glass of milk every morning.",
+  "dictionary": "Use a dictionary to look up new words.",
+  "birthday": "We had a big party for her birthday.",
+  "candle": "He blew out the last candle on the cake.",
+  "present": "I got a great present for my birthday.",
+  "queen": "The queen lives in a very old castle.",
+  "castle": "They visited an old castle near the sea.",
+  "beach": "We played all day on the sandy beach.",
+  "mountain": "It is hard to climb such a high mountain.",
+  "forest": "Many wild animals live in the dark forest.",
+  "island": "You need a boat to reach the small island.",
+  "river": "The little boat went slowly down the river.",
+  "museum": "We saw very old paintings at the museum.",
+  "capital": "London is the capital of England.",
+  "cinema": "We watched a funny film at the cinema.",
+  "guitar": "He plays the guitar in a school band.",
+  "message": "Please leave a message after the call.",
+  "coffee": "My dad drinks a coffee every morning.",
+  "jeans": "She wears blue jeans to school.",
+  "jacket": "Take a jacket, it is cold outside.",
+  "bottle": "Can I have a bottle of water, please?",
+  "market": "They sell fresh fruit at the market.",
+  "storm": "The ship sailed through a huge storm.",
+  "wave": "A big wave hit the small wooden boat.",
+  "sailor": "The brave sailor climbed up the mast.",
+  "weather": "The weather is really bad today.",
+  "bus": "We take the bus to school every day.",
+  "train": "The train was ten minutes late today.",
+  "window": "She opened the window for fresh air.",
+  "map": "Look at the map to find the right way.",
+  "tomato": "I put a tomato in my green salad.",
+  "salad": "She made a healthy salad for lunch.",
+  "apple": "An apple a day keeps you healthy.",
+  "bread": "We need fresh bread for the sandwiches.",
+  "cake": "He ate a big piece of birthday cake.",
+  "egg": "I had an egg and toast for breakfast.",
+  "to hug": "She ran over to hug her best friend.",
+  "excited": "I am so excited about the class trip.",
+  "tired": "After the long game I was very tired.",
+  "dangerous": "Climbing the rocks can be dangerous.",
+  "famous": "The city is famous for its old bridge.",
+  "village": "My granny lives in a tiny village.",
+  "ticket": "I bought a ticket for the raffle.",
+};
+
+const LANGUAGES = [
+  { id: "en", name: "Englisch", short: "EN" },
+  { id: "fr", name: "Französisch", short: "FR" },
+];
+
+let ACTIVE_LANGUAGE = "en";
+let VOCAB = [];
+let TOTAL_WORDS = 0;
+let byId = {};
+
+// --- Storage ---
+const LS_KEY = "vt_state_v2";
+const LEGACY_LS_KEY = "vt_state_v1";
+const VOCAB_KEY = (lang) => "vt_vocab_" + lang;
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+function normalize(s) {
+  return (s || "").toLowerCase().trim().replace(/\s+/g, " ").replace(/[.!?,]$/, "");
+}
+function normalizeLang(lang) {
+  return LANGUAGES.some(l => l.id === lang) ? lang : "en";
+}
+function languageLabel(lang = ACTIVE_LANGUAGE) {
+  return LANGUAGES.find(l => l.id === normalizeLang(lang))?.name || "Englisch";
+}
+function languageShort(lang = ACTIVE_LANGUAGE) {
+  return LANGUAGES.find(l => l.id === normalizeLang(lang))?.short || "EN";
+}
+function emptyProgress() {
+  return {
+    xp: 0,
+    streak: 0,
+    lastSessionDate: null,
+    leitner: {},          // id -> { level, correct, wrong, lastSeen }
+    history: [],          // { date, score, total, pct, mode }
+    sessionsCount: 0,
+  };
+}
+function defaultStore() {
+  return {
+    version: 2,
+    activeLanguage: "en",
+    profile: { onboarded: false, name: "", theme: "city" },
+    progress: { en: emptyProgress(), fr: emptyProgress() },
+  };
+}
+function composeState(store, lang) {
+  const active = normalizeLang(lang || store.activeLanguage);
+  return {
+    ...store.profile,
+    ...emptyProgress(),
+    ...(store.progress?.[active] || {}),
+    language: active,
+  };
+}
+function splitState(s) {
+  const { onboarded, name, theme, language, xp, streak, lastSessionDate, leitner, history, sessionsCount } = s;
+  return {
+    profile: { onboarded: !!onboarded, name: name || "", theme: theme || "city" },
+    language: normalizeLang(language || ACTIVE_LANGUAGE),
+    progress: { xp, streak, lastSessionDate, leitner: leitner || {}, history: history || [], sessionsCount: sessionsCount || 0 },
+  };
+}
+function enrichVocabulary(lang, rows) {
+  return rows.map((w, i) => {
+    const en = String(w.en || w.term || "").trim();
+    const de = String(w.de || "").trim();
+    const id = String(w.id || (lang + "-" + normalize(en) + "-" + i)).replace(/\s+/g, "-");
+    return { id, en, de, language: lang, example: lang === "en" ? (EXAMPLES[en.toLowerCase()] || null) : null };
+  }).filter(w => w.en && w.de);
+}
+function loadVocabulary(lang = ACTIVE_LANGUAGE) {
+  const active = normalizeLang(lang);
+  try {
+    const raw = localStorage.getItem(VOCAB_KEY(active));
+    if (raw) return enrichVocabulary(active, JSON.parse(raw));
+  } catch (e) {}
+  return active === "en" ? enrichVocabulary("en", window.RAW_VOCAB) : [];
+}
+function refreshVocabulary(lang = ACTIVE_LANGUAGE) {
+  ACTIVE_LANGUAGE = normalizeLang(lang);
+  VOCAB = loadVocabulary(ACTIVE_LANGUAGE);
+  TOTAL_WORDS = VOCAB.length;
+  byId = Object.fromEntries(VOCAB.map(w => [w.id, w]));
+  Object.assign(window, { VOCAB, TOTAL_WORDS, byId });
+}
+function setActiveLanguage(lang) {
+  ACTIVE_LANGUAGE = normalizeLang(lang);
+  refreshVocabulary(ACTIVE_LANGUAGE);
+  return ACTIVE_LANGUAGE;
+}
+function defaultState(lang = ACTIVE_LANGUAGE) {
+  return composeState(defaultStore(), normalizeLang(lang));
+}
+function readStore() {
+  const store = defaultStore();
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ...store,
+        ...parsed,
+        profile: { ...store.profile, ...(parsed.profile || {}) },
+        progress: {
+          en: { ...emptyProgress(), ...(parsed.progress?.en || {}) },
+          fr: { ...emptyProgress(), ...(parsed.progress?.fr || {}) },
+        },
+        activeLanguage: normalizeLang(parsed.activeLanguage),
+      };
+    }
+    const legacy = localStorage.getItem(LEGACY_LS_KEY);
+    if (legacy) {
+      const old = { ...defaultState("en"), ...JSON.parse(legacy), language: "en" };
+      const parts = splitState(old);
+      return {
+        ...store,
+        activeLanguage: "en",
+        profile: parts.profile,
+        progress: { ...store.progress, en: parts.progress },
+      };
+    }
+  } catch (e) {}
+  return store;
+}
+
+function loadState() {
+  try {
+    const store = readStore();
+    setActiveLanguage(store.activeLanguage);
+    return composeState(store, ACTIVE_LANGUAGE);
+  } catch (e) {
+    return defaultState();
+  }
+}
+function saveState(s) {
+  try {
+    const store = readStore();
+    const parts = splitState(s);
+    store.activeLanguage = parts.language;
+    store.profile = parts.profile;
+    store.progress = { ...store.progress, [parts.language]: parts.progress };
+    localStorage.setItem(LS_KEY, JSON.stringify(store));
+  } catch (e) {}
+}
+function switchLanguage(currentState, nextLang) {
+  saveState(currentState);
+  const store = readStore();
+  store.activeLanguage = normalizeLang(nextLang);
+  localStorage.setItem(LS_KEY, JSON.stringify(store));
+  setActiveLanguage(store.activeLanguage);
+  return composeState(store, store.activeLanguage);
+}
+function resetAll() {
+  try {
+    localStorage.removeItem(LS_KEY);
+    localStorage.removeItem(LEGACY_LS_KEY);
+    localStorage.removeItem(VOCAB_KEY("en"));
+    localStorage.removeItem(VOCAB_KEY("fr"));
+  } catch (e) {}
+}
+
+function parseCsv(text) {
+  const delimiter = (text.split("\n")[0].match(/;/g) || []).length > (text.split("\n")[0].match(/,/g) || []).length ? ";" : ",";
+  const rows = [];
+  let row = [], cell = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i], next = text[i + 1];
+    if (ch === '"' && quoted && next === '"') { cell += '"'; i++; continue; }
+    if (ch === '"') { quoted = !quoted; continue; }
+    if (ch === delimiter && !quoted) { row.push(cell); cell = ""; continue; }
+    if ((ch === "\n" || ch === "\r") && !quoted) {
+      if (ch === "\r" && next === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = ""; continue;
+    }
+    cell += ch;
+  }
+  row.push(cell); rows.push(row);
+  const clean = rows.map(r => r.map(c => c.trim())).filter(r => r.some(Boolean));
+  const first = clean[0] || [];
+  const hasHeader = /^(fremdwort|term|wort|word|vokabel|anglais|franzoesisch|französisch|englisch)$/i.test(first[0] || "")
+    || /^(uebersetzung|übersetzung|deutsch|german)$/i.test(first[1] || "");
+  const body = hasHeader ? clean.slice(1) : clean;
+  const seen = new Set();
+  return body.map((r, i) => ({ en: r[0], de: r[1], id: "csv-" + i }))
+    .filter(w => {
+      const key = normalize(w.en);
+      if (!w.en || !w.de || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+function importVocabularyCsv(lang, text) {
+  const active = normalizeLang(lang);
+  const rows = parseCsv(text);
+  if (!rows.length) throw new Error("Keine gültigen Vokabeln gefunden.");
+  localStorage.setItem(VOCAB_KEY(active), JSON.stringify(rows));
+  if (active === ACTIVE_LANGUAGE) refreshVocabulary(active);
+  return rows.length;
+}
+function exportBackup() {
+  return {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    state: readStore(),
+    vocab: {
+      en: JSON.parse(localStorage.getItem(VOCAB_KEY("en")) || "null"),
+      fr: JSON.parse(localStorage.getItem(VOCAB_KEY("fr")) || "null"),
+    },
+  };
+}
+function downloadBackup() {
+  const stamp = todayStr();
+  const blob = new Blob([JSON.stringify(exportBackup(), null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "vokabeltrainer-backup-" + stamp + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function restoreBackupText(text) {
+  const data = JSON.parse(text);
+  if (!data || data.version !== 2 || !data.state || !data.state.progress) throw new Error("Backup-Format nicht erkannt.");
+  localStorage.setItem(LS_KEY, JSON.stringify(data.state));
+  if (data.vocab?.en) localStorage.setItem(VOCAB_KEY("en"), JSON.stringify(data.vocab.en));
+  if (data.vocab?.fr) localStorage.setItem(VOCAB_KEY("fr"), JSON.stringify(data.vocab.fr));
+}
+
+// --- Leitner helpers ---
+function getLevel(state, id) {
+  return state.leitner[id]?.level || 1;
+}
+function ensureLeitner(state, id) {
+  if (!state.leitner[id]) state.leitner[id] = { level: 1, correct: 0, wrong: 0, lastSeen: null };
+  return state.leitner[id];
+}
+// Words due this session by Leitner cadence (level N seen every 2^(N-1) sessions).
+function dueWords(state) {
+  const s = state.sessionsCount;
+  return VOCAB.filter(w => {
+    const lvl = getLevel(state, w.id);
+    if (lvl >= 5) return false;            // mastered -> only test mode
+    const cadence = Math.pow(2, lvl - 1);  // 1,2,4,8
+    return s % cadence === 0;
+  });
+}
+// Mastery distribution across levels 1..5
+function masteryDistribution(state) {
+  const dist = [0, 0, 0, 0, 0];
+  for (const w of VOCAB) dist[getLevel(state, w.id) - 1]++;
+  return dist; // index0 = level1
+}
+function accuracy(state, id) {
+  const r = state.leitner[id];
+  if (!r || (r.correct + r.wrong) === 0) return null;
+  return r.correct / (r.correct + r.wrong);
+}
+
+// --- Question building ---
+function pick(arr, n) {
+  const c = [...arr];
+  for (let i = c.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [c[i], c[j]] = [c[j], c[i]];
+  }
+  return c.slice(0, n);
+}
+function distractors(word, field, n) {
+  // other words' value in `field` (en/de), excluding same value
+  const pool = VOCAB.filter(w => w.id !== word.id && w[field] !== word[field]);
+  return pick(pool, n).map(w => w[field]);
+}
+
+// Build one question object for a word, given allowed types.
+function makeQuestion(word, types) {
+  const usable = types.filter(t => t !== "match"); // match handled in groups
+  let avail = [...usable];
+  if (!word.example) avail = avail.filter(t => t !== "cloze");
+  if (avail.length === 0) avail = ["mc"];
+  const type = pick(avail, 1)[0];
+
+  if (type === "mc") {
+    // randomly EN->DE or DE->EN
+    const dir = Math.random() < 0.5 ? "en2de" : "de2en";
+    const prompt = dir === "en2de" ? word.en : word.de;
+    const answerField = dir === "en2de" ? "de" : "en";
+    const correct = word[answerField];
+    const opts = pick([correct, ...distractors(word, answerField, 3)], 4);
+    return { kind: "mc", word, dir, prompt, correct, options: opts };
+  }
+  if (type === "type") {
+    // German given, type the English
+    return { kind: "type", word, prompt: word.de, correct: word.en };
+  }
+  if (type === "cloze") {
+    const en = word.en;
+    // blank the english word (case-insensitive, first occurrence)
+    const re = new RegExp(en.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const sentence = word.example.replace(re, "_____");
+    return { kind: "cloze", word, sentence, hint: word.de, correct: en };
+  }
+  return { kind: "mc", word, dir: "en2de", prompt: word.en, correct: word.de,
+           options: pick([word.de, ...distractors(word, "de", 3)], 4) };
+}
+
+// Build a full session queue (mix of single Qs + one match group).
+function buildSession(state, types, max = 15) {
+  let due = dueWords(state);
+  if (due.length < 6) {
+    // top up with lowest-level words
+    const extra = [...VOCAB].sort((a, b) => getLevel(state, a.id) - getLevel(state, b.id));
+    const have = new Set(due.map(w => w.id));
+    for (const w of extra) { if (!have.has(w.id)) { due.push(w); have.add(w.id); } if (due.length >= max + 6) break; }
+  }
+  // prioritize lower levels
+  due.sort((a, b) => getLevel(state, a.id) - getLevel(state, b.id) || Math.random() - 0.5);
+  const chosen = due.slice(0, max);
+
+  const queue = [];
+  const wantMatch = types.includes("match") && chosen.length >= 6;
+  let matchPool = [];
+  if (wantMatch) matchPool = chosen.slice(0, 6);
+  const singleWords = wantMatch ? chosen.slice(6) : chosen;
+
+  for (const w of singleWords) queue.push(makeQuestion(w, types));
+
+  if (wantMatch) {
+    const group = { kind: "match", pairs: matchPool.map(w => ({ id: w.id, en: w.en, de: w.de })) };
+    // insert match round in the middle
+    const mid = Math.floor(queue.length / 2);
+    queue.splice(mid, 0, group);
+  }
+  return queue.slice(0, max);
+}
+
+// Test mode: every word once, MC only, no leitner change.
+function buildTest(state) {
+  const all = pick(VOCAB, VOCAB.length);
+  return all.map(w => {
+    const dir = "en2de";
+    return { kind: "mc", word: w, dir, prompt: w.en, correct: w.de,
+             options: pick([w.de, ...distractors(w, "de", 3)], 4), test: true };
+  });
+}
+
+// Apply an answer result to state (mutates a clone in caller). Returns xp gained.
+function applyResult(state, wordId, outcome) {
+  // outcome: 'first' | 'second' | 'wrong'
+  const rec = ensureLeitner(state, wordId);
+  rec.lastSeen = todayStr();
+  let xp = 0;
+  if (outcome === "first") { rec.level = Math.min(5, rec.level + 1); rec.correct++; xp = 10; }
+  else if (outcome === "second") { rec.correct++; xp = 5; } // no level change
+  else { rec.level = 1; rec.wrong++; xp = 0; }
+  return xp;
+}
+
+function finishSession(state, score, total, mode) {
+  const today = todayStr();
+  if (mode !== "test") {
+    // streak
+    if (state.lastSessionDate !== today) {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      if (state.lastSessionDate === yesterday) state.streak += 1;
+      else state.streak = 1;
+      state.lastSessionDate = today;
+    }
+    state.sessionsCount += 1;
+  }
+  const pct = total ? Math.round((score / total) * 100) : 0;
+  state.history.unshift({ date: today, ts: Date.now(), score, total, pct, mode });
+  state.history = state.history.slice(0, 10);
+}
+
+const THEMES = [
+  { id: "city",   name: "City",   sub: "hell · urban",      swatch: "#FF7A1A" },
+  { id: "space",  name: "Space",  sub: "dunkel · Sterne",   swatch: "#22D3EE" },
+  { id: "forest", name: "Forest", sub: "grün · ruhig",      swatch: "#2D9D6E" },
+  { id: "ocean",  name: "Ocean",  sub: "tiefblau · weich",  swatch: "#2EC4B6" },
+];
+
+Object.assign(window, {
+  VOCAB, TOTAL_WORDS, byId, THEMES, LANGUAGES,
+  loadState, saveState, resetAll, defaultState, setActiveLanguage, switchLanguage,
+  importVocabularyCsv, downloadBackup, restoreBackupText, languageLabel, languageShort,
+  getLevel, dueWords, masteryDistribution, accuracy,
+  buildSession, buildTest, makeQuestion, applyResult, finishSession,
+  pick, todayStr,
+});
+
+refreshVocabulary(ACTIVE_LANGUAGE);

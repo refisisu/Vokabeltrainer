@@ -1,0 +1,93 @@
+// vt-app.jsx — root: state machine, routing, theme, tweaks.
+const { useState: useA, useEffect: useAE, useRef: useAR } = React;
+
+const ACTIVE_TYPES = ["mc", "type", "cloze", "match"];
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "feedbackStyle": "konfetti",
+  "mascotReact": true,
+  "shake": true,
+  "sound": false
+}/*EDITMODE-END*/;
+
+function clone(s) { return JSON.parse(JSON.stringify(s)); }
+
+function App() {
+  const [state, setState] = useA(loadState);
+  const [screen, setScreen] = useA(() => (loadState().onboarded ? "home" : "onboarding"));
+  const [queue, setQueue] = useA(null);
+  const [mode, setMode] = useA("session");
+  const [lastResult, setLastResult] = useA(null);
+  const [themeSheet, setThemeSheet] = useA(false);
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  useStarfield();
+
+  // expose active Farbwelt synchronously so the mascot can switch per world
+  window.__vtTheme = state.onboarded ? state.theme : "city";
+
+  // persist + theme
+  useAE(() => { saveState(state); }, [state]);
+  useAE(() => { if (state.onboarded) document.body.className = "theme-" + state.theme; }, [state.theme, state.onboarded]);
+
+  const go = (target) => {
+    if (target === "session") {
+      setQueue(buildSession(state, ACTIVE_TYPES, 15)); setMode("session"); setScreen("quiz");
+    } else if (target === "test") {
+      setQueue(buildTest(state)); setMode("test"); setScreen("quiz");
+    } else {
+      setScreen(target);
+    }
+    const sc = document.querySelector(".scroll"); // reset scroll on nav
+  };
+
+  const onFinish = (result) => {
+    setState(prev => {
+      const s = clone(prev);
+      if (mode !== "test") {
+        result.leitnerUpdates.forEach(u => applyResult(s, u.id, u.outcome));
+        s.xp += result.xp;
+      }
+      finishSession(s, result.score, result.total, mode === "test" ? "test" : "session");
+      return s;
+    });
+    setLastResult(result);
+    setScreen(mode === "test" ? "diagnose" : "result");
+  };
+
+  const onboardDone = ({ name, theme, language }) => {
+    setActiveLanguage(language);
+    setState(s => ({ ...s, onboarded: true, name, theme, language }));
+    document.body.className = "theme-" + theme;
+    setScreen("home");
+  };
+
+  let view = null;
+  if (screen === "onboarding") view = <Onboarding onDone={onboardDone} />;
+  else if (screen === "home") view = <Home state={state} go={go} onOpenTheme={() => setThemeSheet(true)} />;
+  else if (screen === "quiz") view = <Quiz queue={queue} mode={mode} tweaks={tweaks} onFinish={onFinish} onExit={() => go("home")} />;
+  else if (screen === "result") view = <Result result={lastResult} mode={mode} state={state} go={go} tweaks={tweaks} />;
+  else if (screen === "diagnose") view = <Diagnose result={lastResult} go={go} tweaks={tweaks} />;
+  else if (screen === "overview") view = <Overview state={state} go={go} />;
+  else if (screen === "leaderboard") view = <Leaderboard state={state} go={go} />;
+  else if (screen === "settings") view = <Settings state={state} setState={setState} go={go} onOpenTheme={() => setThemeSheet(true)} tweaks={tweaks} setTweak={setTweak} />;
+
+  return (
+    <React.Fragment>
+      {view}
+      {themeSheet && <ThemeSheet current={state.theme} onClose={() => setThemeSheet(false)}
+        onPick={(id) => { setState(s => ({ ...s, theme: id })); setThemeSheet(false); }} />}
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Antwort-Feedback" />
+        <TweakRadio label="Belohnung" value={tweaks.feedbackStyle}
+          options={["konfetti", "dezent", "aus"]} onChange={v => setTweak("feedbackStyle", v)} />
+        <TweakToggle label="Voki reagiert" value={tweaks.mascotReact} onChange={v => setTweak("mascotReact", v)} />
+        <TweakToggle label="Wackeln bei Fehler" value={tweaks.shake} onChange={v => setTweak("shake", v)} />
+        <TweakToggle label="Sound-Effekte" value={tweaks.sound} onChange={v => setTweak("sound", v)} />
+      </TweaksPanel>
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);

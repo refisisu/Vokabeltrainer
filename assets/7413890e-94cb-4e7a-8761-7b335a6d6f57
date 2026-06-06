@@ -1,0 +1,292 @@
+// vt-quiz.jsx — quiz orchestrator + 4 question types + feedback bar.
+const { useState: useStateQ, useEffect: useEffectQ, useRef: useRefQ } = React;
+
+/* ---------- sound (opt-in) ---------- */
+let _ac = null;
+function tone(kind, on) {
+  if (!on) return;
+  try {
+    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    const ac = _ac, now = ac.currentTime;
+    const seq = kind === "correct" ? [[660, 0], [880, 0.09]] : kind === "win" ? [[523,0],[659,.1],[784,.2]] : [[180, 0]];
+    seq.forEach(([f, t0]) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = kind === "wrong" ? "sawtooth" : "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, now + t0);
+      g.gain.exponentialRampToValueAtTime(kind === "wrong" ? 0.12 : 0.16, now + t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t0 + (kind === "wrong" ? 0.22 : 0.18));
+      o.connect(g); g.connect(ac.destination); o.start(now + t0); o.stop(now + t0 + 0.25);
+    });
+  } catch (e) {}
+}
+
+function normalize(s) {
+  return (s || "").toLowerCase().trim().replace(/\s+/g, " ").replace(/[.!?,]$/, "");
+}
+function answerMatches(input, correct) {
+  const a = normalize(input), b = normalize(correct);
+  if (a === b) return true;
+  if ("to " + a === b || a === "to " + b) return true; // tolerate missing/extra "to"
+  return false;
+}
+
+/* ---------- MULTIPLE CHOICE ---------- */
+function MCQuestion({ q, onResolve, tweaks }) {
+  const [picked, setPicked] = useStateQ(null);
+  const locked = picked !== null;
+  const dirLabel = q.dir === "en2de" ? "Was heißt das auf Deutsch?" : "Wie heißt das auf Englisch?";
+  const choose = (opt) => {
+    if (locked) return;
+    setPicked(opt);
+    const ok = opt === q.correct;
+    tone(ok ? "correct" : "wrong", tweaks.sound);
+    setTimeout(() => onResolve({ outcome: ok ? "first" : "wrong", correct: q.correct }), 720);
+  };
+  return (
+    <div className="q-enter" style={{ display: "flex", flexDirection: "column", gap: 22, flex: 1 }}>
+      <div>
+        <div className="eyebrow" style={{ marginBottom: 14 }}>{dirLabel}</div>
+        <div className="display" style={{ fontSize: 40, fontWeight: 600, lineHeight: 1.06 }}>{q.prompt}</div>
+        {q.dir === "en2de" && <div className="dim" style={{ marginTop: 6, fontSize: 14 }}>englisch</div>}
+      </div>
+      <div style={{ display: "grid", gap: 12, marginTop: "auto" }}>
+        {q.options.map((opt) => {
+          let cls = "opt", extra = {};
+          if (locked) {
+            if (opt === q.correct) extra = { background: "var(--correct-soft)", borderColor: "var(--correct)", color: "var(--correct)" };
+            else if (opt === picked) extra = { background: "var(--wrong-soft)", borderColor: "var(--wrong)", color: "var(--wrong)" };
+            else extra = { opacity: 0.5 };
+          }
+          return (
+            <button key={opt} onClick={() => choose(opt)} disabled={locked}
+              style={{ textAlign: "left", padding: "17px 18px", borderRadius: "var(--r-md)",
+                border: "2px solid var(--border)", background: "var(--surface)", color: "var(--text)",
+                fontFamily: "var(--font-ui)", fontSize: 19, fontWeight: 500, cursor: locked ? "default" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+                transition: "all 140ms var(--ease)", ...extra }}>
+              {opt}
+              {locked && opt === q.correct && <Icon name="check" size={22} />}
+              {locked && opt === picked && opt !== q.correct && <Icon name="x" size={22} />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- TYPE / CLOZE (text input, 2 attempts) ---------- */
+function TypeQuestion({ q, onResolve, tweaks }) {
+  const [val, setVal] = useStateQ("");
+  const [attempt, setAttempt] = useStateQ(0); // 0 first, 1 second
+  const [bad, setBad] = useStateQ(false);
+  const ref = useRefQ(null);
+  useEffectQ(() => { const t = setTimeout(() => ref.current && ref.current.focus(), 250); return () => clearTimeout(t); }, []);
+  const isCloze = q.kind === "cloze";
+  const submit = (e) => {
+    e && e.preventDefault();
+    if (!val.trim()) return;
+    if (answerMatches(val, q.correct)) {
+      tone("correct", tweaks.sound);
+      onResolve({ outcome: attempt === 0 ? "first" : "second", correct: q.correct });
+      return;
+    }
+    tone("wrong", tweaks.sound);
+    if (attempt === 0) {
+      setAttempt(1); setBad(true);
+      if (tweaks.shake) { const el = ref.current; el && el.classList.remove("shake"); void (el && el.offsetWidth); el && el.classList.add("shake"); }
+      setTimeout(() => setBad(false), 450);
+    } else {
+      onResolve({ outcome: "wrong", correct: q.correct });
+    }
+  };
+  return (
+    <form onSubmit={submit} className="q-enter" style={{ display: "flex", flexDirection: "column", gap: 20, flex: 1 }}>
+      <div>
+        <div className="eyebrow" style={{ marginBottom: 14 }}>{isCloze ? "Fülle die Lücke" : "Schreib das englische Wort"}</div>
+        {isCloze ? (
+          <div className="display" style={{ fontSize: 27, fontWeight: 500, lineHeight: 1.3 }}>
+            {q.sentence.split("_____").map((part, i, arr) => (
+              <React.Fragment key={i}>{part}{i < arr.length - 1 &&
+                <span style={{ display: "inline-block", minWidth: 64, borderBottom: "3px solid var(--accent)", margin: "0 4px" }}>&nbsp;</span>}</React.Fragment>
+            ))}
+          </div>
+        ) : (
+          <div className="display" style={{ fontSize: 40, fontWeight: 600 }}>{q.prompt}</div>
+        )}
+        <div className="dim" style={{ marginTop: 10, fontSize: 15 }}>
+          {isCloze ? <>Hinweis: <b style={{ color: "var(--text)" }}>{q.hint}</b></> : "deutsch"}
+        </div>
+      </div>
+      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+        {attempt === 1 && (
+          <div className="pop" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--wrong)" }}>
+            <Icon name="x" size={16} /> Fast! Versuch es noch einmal.
+          </div>
+        )}
+        <input ref={ref} className="field" value={val} onChange={(e) => setVal(e.target.value)}
+          placeholder="Tippe auf Englisch…" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck="false"
+          style={bad ? { borderColor: "var(--wrong)" } : {}} />
+        <button type="submit" className="btn btn-primary btn-block" disabled={!val.trim()}>
+          Prüfen <Icon name="check" size={20} />
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/* ---------- MATCH PAIRS ---------- */
+function MatchQuestion({ q, onResolve, tweaks }) {
+  const pairs = q.pairs;
+  const [left] = useStateQ(() => pick(pairs.map(p => ({ id: p.id, t: p.de })), pairs.length));
+  const [right] = useStateQ(() => pick(pairs.map(p => ({ id: p.id, t: p.en })), pairs.length));
+  const [sel, setSel] = useStateQ(null); // {col,id}
+  const [matched, setMatched] = useStateQ([]);
+  const [wrongPair, setWrongPair] = useStateQ(null);
+  const [mistakes, setMistakes] = useStateQ(0);
+
+  const tap = (col, id) => {
+    if (matched.includes(id) || wrongPair) return;
+    if (!sel) { setSel({ col, id }); return; }
+    if (sel.col === col) { setSel({ col, id }); return; }
+    // attempt match
+    if (sel.id === id) {
+      tone("correct", tweaks.sound);
+      const nm = [...matched, id]; setMatched(nm); setSel(null);
+      if (nm.length === pairs.length) {
+        tone("win", tweaks.sound);
+        setTimeout(() => onResolve({ outcome: mistakes === 0 ? "first" : "second", correct: null, mistakes }), 480);
+      }
+    } else {
+      tone("wrong", tweaks.sound);
+      setMistakes(m => m + 1);
+      setWrongPair([{ col, id }, sel]);
+      setTimeout(() => { setWrongPair(null); setSel(null); }, 420);
+    }
+  };
+  const cardStyle = (col, id) => {
+    const isMatched = matched.includes(id);
+    const isSel = sel && sel.col === col && sel.id === id;
+    const isWrong = wrongPair && wrongPair.some(w => w.col === col && w.id === id);
+    let s = { padding: "16px 14px", borderRadius: "var(--r-md)", border: "2px solid var(--border)",
+      background: "var(--surface)", color: "var(--text)", fontSize: 17, fontWeight: 500, cursor: "pointer",
+      minHeight: 58, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
+      transition: "all 160ms var(--ease)", fontFamily: "var(--font-ui)" };
+    if (isMatched) s = { ...s, background: "var(--correct-soft)", borderColor: "var(--correct)", color: "var(--correct)", opacity: 0.7, cursor: "default" };
+    else if (isWrong) s = { ...s, background: "var(--wrong-soft)", borderColor: "var(--wrong)", color: "var(--wrong)" };
+    else if (isSel) s = { ...s, borderColor: "var(--accent)", background: "color-mix(in oklab, var(--accent) 12%, var(--surface))", transform: "scale(1.02)" };
+    return s;
+  };
+  return (
+    <div className="q-enter" style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
+      <div>
+        <div className="eyebrow" style={{ marginBottom: 8 }}>Finde die Paare</div>
+        <div className="dim" style={{ fontSize: 15 }}>Tippe ein deutsches und das passende englische Wort.</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+        <div style={{ display: "grid", gap: 10 }}>
+          {left.map(c => <button key={"l" + c.id} className={wrongPair && wrongPair.some(w=>w.id===c.id&&w.col==="l")&&tweaks.shake?"shake":""} onClick={() => tap("l", c.id)} style={cardStyle("l", c.id)} disabled={matched.includes(c.id)}>{c.t}</button>)}
+        </div>
+        <div style={{ display: "grid", gap: 10 }}>
+          {right.map(c => <button key={"r" + c.id} className={wrongPair && wrongPair.some(w=>w.id===c.id&&w.col==="r")&&tweaks.shake?"shake":""} onClick={() => tap("r", c.id)} style={cardStyle("r", c.id)} disabled={matched.includes(c.id)}>{c.t}</button>)}
+        </div>
+      </div>
+      <div className="dim" style={{ marginTop: "auto", textAlign: "center", fontSize: 13 }}>{matched.length} / {pairs.length} Paare</div>
+    </div>
+  );
+}
+
+/* ---------- FEEDBACK BAR ---------- */
+function FeedbackBar({ status, correct, xp, onNext, tweaks }) {
+  const ok = status === "first" || status === "second";
+  useEffectQ(() => {
+    const onKey = (e) => { if (e.key === "Enter") onNext(); };
+    window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
+  }, [onNext]);
+  const showConfetti = ok && status === "first" && tweaks.feedbackStyle === "konfetti";
+  return (
+    <div className="pop" style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20,
+      background: ok ? "var(--correct-soft)" : "var(--wrong-soft)",
+      borderTop: `2px solid ${ok ? "var(--correct)" : "var(--wrong)"}`,
+      borderRadius: "var(--r-lg) var(--r-lg) 0 0", padding: "18px 20px calc(18px + env(safe-area-inset-bottom))" }}>
+      {showConfetti && <Confetti count={48} duration={650} />}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {tweaks.mascotReact && <div style={{ marginTop: -36 }}><Voki mood={ok ? "cheer" : "sad"} size={64} /></div>}
+        <div style={{ flex: 1 }}>
+          <div className="display" style={{ fontSize: 20, fontWeight: 700, color: ok ? "var(--correct)" : "var(--wrong)",
+            display: "flex", alignItems: "center", gap: 8 }}>
+            <Icon name={ok ? "check" : "x"} size={22} />
+            {ok ? (status === "first" ? "Richtig!" : "Geschafft – beim 2. Versuch") : "Nicht ganz"}
+            {ok && xp > 0 && <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 15 }}><Icon name="bolt" size={16} />+{xp}</span>}
+          </div>
+          {!ok && correct && <div style={{ fontSize: 15, color: "var(--text)", marginTop: 3 }}>Richtig: <b>{correct}</b></div>}
+        </div>
+      </div>
+      <button onClick={onNext} className="btn btn-block" style={{ marginTop: 14,
+        background: ok ? "var(--correct)" : "var(--wrong)", color: "#fff" }}>
+        Weiter <Icon name="arrowR" size={20} />
+      </button>
+    </div>
+  );
+}
+
+/* ---------- QUIZ ORCHESTRATOR ---------- */
+function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
+  const [idx, setIdx] = useStateQ(0);
+  const [fb, setFb] = useStateQ(null); // {status, correct, xp}
+  const resultsRef = useRefQ({ score: 0, total: 0, xp: 0, leitnerUpdates: [], wrongWords: [] });
+  const q = queue[idx];
+  const total = queue.length;
+
+  const resolve = ({ outcome, correct, mistakes }) => {
+    const r = resultsRef.current;
+    let xp = 0;
+    if (q.kind === "match") {
+      // per-pair leitner; score = 1 if no mistakes
+      q.pairs.forEach((p, i) => {
+        const out = (outcome === "first") ? "first" : (i === 0 && outcome === "second" ? "second" : "first");
+        if (mode !== "test") r.leitnerUpdates.push({ id: p.id, outcome: "first" });
+      });
+      xp = mistakes === 0 ? 10 : 6;
+      r.total += 1; r.score += (mistakes === 0 ? 1 : 1); // completing counts correct
+      r.xp += xp;
+      setFb({ status: mistakes === 0 ? "first" : "second", correct: null, xp });
+      return;
+    }
+    const ok = outcome === "first" || outcome === "second";
+    xp = outcome === "first" ? 10 : outcome === "second" ? 5 : 0;
+    r.total += 1; if (ok) r.score += 1; r.xp += xp;
+    if (mode !== "test") r.leitnerUpdates.push({ id: q.word.id, outcome });
+    else r.leitnerUpdates.push({ id: q.word.id, outcome, testOnly: true });
+    if (!ok) r.wrongWords.push(q.word.id);
+    setFb({ status: outcome, correct, xp });
+  };
+
+  const next = () => {
+    setFb(null);
+    if (idx + 1 >= total) { onFinish(resultsRef.current); return; }
+    setIdx(idx + 1);
+  };
+
+  const QComp = q.kind === "mc" ? MCQuestion : q.kind === "match" ? MatchQuestion : TypeQuestion;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div style={{ padding: "16px 18px 10px", display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={onExit} aria-label="Beenden" style={{ width: 38, height: 38, borderRadius: 12, border: "none",
+          background: "var(--surface-2)", color: "var(--text-dim)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <Icon name="x" size={20} />
+        </button>
+        <div style={{ flex: 1 }}><ProgressBar value={idx + (fb ? 1 : 0)} total={total} label={(idx + 1) + "/" + total} accent={mode === "test" ? "var(--accent-2)" : "var(--accent)"} /></div>
+      </div>
+      <div className="scroll" style={{ padding: "12px 22px 26px", display: "flex" }}>
+        <div key={idx} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          <QComp q={q} onResolve={resolve} tweaks={tweaks} />
+        </div>
+      </div>
+      {fb && <FeedbackBar status={fb.status} correct={fb.correct} xp={fb.xp} onNext={next} tweaks={tweaks} />}
+    </div>
+  );
+}
+
+Object.assign(window, { Quiz, MCQuestion, TypeQuestion, MatchQuestion, FeedbackBar, tone, answerMatches });
