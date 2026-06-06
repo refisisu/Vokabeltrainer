@@ -1,4 +1,4 @@
-const CACHE_NAME = "vt-cache-v4";
+const CACHE_NAME = "vt-cache-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -8,7 +8,6 @@ const APP_SHELL = [
   "./icons/icon-maskable-512.png",
   "./assets/0b387a4a-be3f-40c0-8c7d-9666f9956723",
   "./assets/16fc9cff-c18a-457e-8bd4-8066bf3491fa",
-  "./assets/269c5575-a3f6-4e39-ad98-a43444d14046",
   "./assets/30532858-fb92-4b30-8014-b32b8d5ffa47",
   "./assets/3b6407df-8e42-4eb2-91a2-4bdad3b47644",
   "./assets/5664187e-d766-461a-bacf-8e274a38971b",

@@ -110,7 +110,7 @@ function Onboarding({ onDone }) {
         <div className="q-enter" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 20, paddingTop: 30 }}>
           <div>
             <div className="h1">Welche Sprache?</div>
-            <div className="dim" style={{ fontSize: 16, marginTop: 8 }}>Englisch ist direkt gefüllt. Französisch kannst du per CSV importieren.</div>
+            <div className="dim" style={{ fontSize: 16, marginTop: 8 }}>Beide Sprachen starten leer. Importiere deine Listen per CSV.</div>
           </div>
           <div style={{ display: "grid", gap: 12 }}>
             {LANGUAGES.map(l => {
@@ -120,7 +120,7 @@ function Onboarding({ onDone }) {
                   style={{ textAlign: "left", padding: 16, borderRadius: "var(--r-md)", cursor: "pointer",
                     border: `2px solid ${active ? "var(--accent)" : "var(--border)"}`, background: "var(--surface)", position: "relative" }}>
                   <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 18 }}>{l.name}</div>
-                  <div className="dim" style={{ fontSize: 13 }}>{l.id === "en" ? TOTAL_WORDS + " Beispielwörter" : "Eigene CSV-Liste"}</div>
+                  <div className="dim" style={{ fontSize: 13 }}>Eigene CSV-Liste</div>
                   {active && <div style={{ position: "absolute", top: 14, right: 14, color: "var(--accent)" }}><Icon name="check" size={20} /></div>}
                 </button>
               );

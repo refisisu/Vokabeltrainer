@@ -1,5 +1,4 @@
 // vt-data.jsx — vocab enrichment, Leitner logic, persistence, session builder.
-// Consumes window.RAW_VOCAB (from vt-vocab.js).
 
 // --- Curated example sentences (English target word blanked for Lückentext) ---
 // Words without an example fall back to Multiple Choice.
@@ -141,7 +140,7 @@ function loadVocabulary(lang = ACTIVE_LANGUAGE) {
     const raw = localStorage.getItem(VOCAB_KEY(active));
     if (raw) return enrichVocabulary(active, JSON.parse(raw));
   } catch (e) {}
-  return active === "en" ? enrichVocabulary("en", window.RAW_VOCAB) : [];
+  return [];
 }
 function refreshVocabulary(lang = ACTIVE_LANGUAGE) {
   ACTIVE_LANGUAGE = normalizeLang(lang);
