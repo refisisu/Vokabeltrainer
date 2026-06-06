@@ -51,14 +51,14 @@ function MCQuestion({ q, onResolve, tweaks }) {
     setTimeout(() => onResolve({ outcome: ok ? "first" : "wrong", correct: q.correct }), 720);
   };
   return (
-    <div className="q-enter" style={{ display: "flex", flexDirection: "column", gap: 22, flex: 1 }}>
-      <div>
+    <div className="q-enter vt-mc-question" style={{ display: "flex", flexDirection: "column", gap: 22, flex: 1 }}>
+      <div className="vt-mc-prompt">
         <div className="eyebrow" style={{ marginBottom: 14 }}>{dirLabel}</div>
         <div className="display" style={{ fontSize: 40, fontWeight: 600, lineHeight: 1.06 }}>{q.prompt}</div>
         {q.dir === "en2de" && q.word.pronunciation && <div className="dim" style={{ marginTop: 6, fontSize: 15 }}>{q.word.pronunciation}</div>}
         {q.dir === "en2de" && <div className="dim" style={{ marginTop: 6, fontSize: 14 }}>englisch</div>}
       </div>
-      <div style={{ display: "grid", gap: 12, marginTop: "auto" }}>
+      <div className="vt-mc-options" style={{ display: "grid", gap: 12, marginTop: "auto" }}>
         {q.options.map((opt) => {
           let cls = "opt", extra = {};
           if (locked) {
@@ -187,12 +187,12 @@ function MatchQuestion({ q, onResolve, tweaks }) {
     return s;
   };
   return (
-    <div className="q-enter" style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
-      <div>
+    <div className="q-enter vt-match-question" style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
+      <div className="vt-match-prompt">
         <div className="eyebrow" style={{ marginBottom: 8 }}>Finde die Paare</div>
         <div className="dim" style={{ fontSize: 15 }}>Tippe ein deutsches und das passende englische Wort.</div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+      <div className="vt-match-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
         <div style={{ display: "grid", gap: 10 }}>
           {left.map(c => <button key={"l" + c.id} className={wrongPair && wrongPair.some(w=>w.id===c.id&&w.col==="l")&&tweaks.shake?"shake":""} onClick={() => tap("l", c.id)} style={cardStyle("l", c.id)} disabled={matched.includes(c.id)}>{c.t}</button>)}
         </div>
@@ -281,8 +281,8 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
   const QComp = q.kind === "mc" ? MCQuestion : q.kind === "match" ? MatchQuestion : TypeQuestion;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div style={{ padding: "16px 18px 10px", display: "flex", alignItems: "center", gap: 12 }}>
+    <div className="vt-quiz" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div className="vt-quiz-top" style={{ padding: "16px 18px 10px", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={onExit} aria-label="Beenden" style={{ width: 38, height: 38, borderRadius: 12, border: "none",
           background: "var(--surface-2)", color: "var(--text-dim)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
           <Icon name="x" size={20} />
@@ -290,7 +290,7 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
         <div style={{ flex: 1 }}><ProgressBar value={idx + (fb ? 1 : 0)} total={total} label={(idx + 1) + "/" + total} accent={mode === "test" ? "var(--accent-2)" : "var(--accent)"} /></div>
       </div>
       <div className="scroll vt-quiz-scroll" style={{ padding: "12px 22px 26px", display: "flex" }}>
-        <div key={idx} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <div className="vt-question-wrap" key={idx} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <QComp q={q} onResolve={resolve} tweaks={tweaks} />
         </div>
       </div>

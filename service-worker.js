@@ -1,4 +1,4 @@
-const CACHE_NAME = "vt-cache-v7";
+const CACHE_NAME = "vt-cache-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -8,11 +8,11 @@ const APP_SHELL = [
   "./icons/icon-maskable-512.png",
   "./assets/0b387a4a-be3f-40c0-8c7d-9666f9956723",
   "./assets/16fc9cff-c18a-457e-8bd4-8066bf3491fa",
-  "./assets/30532858-fb92-4b30-8014-b32b8d5ffa47",
+  "./assets/30532858-fb92-4b30-8014-b32b8d5ffa47?v=8",
   "./assets/3b6407df-8e42-4eb2-91a2-4bdad3b47644",
   "./assets/5664187e-d766-461a-bacf-8e274a38971b",
   "./assets/6172289a-3ca5-41cc-9441-8572cea7fe1b",
-  "./assets/7413890e-94cb-4e7a-8761-7b335a6d6f57?v=7",
+  "./assets/7413890e-94cb-4e7a-8761-7b335a6d6f57?v=8",
   "./assets/8ea98a70-ee1c-49c8-b7e0-91fe06152229",
   "./assets/9120af98-5c2d-40fb-baaa-d4158ae8ab1b",
   "./assets/a5ade94d-13ea-4c26-9ff9-03a58056eeca",

@@ -168,8 +168,8 @@ function Home({ state, go, onOpenTheme }) {
   const hasWords = TOTAL_WORDS > 0;
   const dueCount = hasWords ? Math.min(15, dueWords(state).length || TOTAL_WORDS) : 0;
   return (
-    <div className="scroll" style={{ padding: "6px 18px 30px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 2px 18px" }}>
+    <div className="scroll vt-home" style={{ padding: "6px 18px 30px" }}>
+      <div className="vt-home-header" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 2px 18px" }}>
         <div style={{ flex: 1 }}>
           <div className="dim" style={{ fontSize: 14 }}>{greeting()}{state.name ? "," : "!"}</div>
           {state.name && <div className="h2" style={{ fontSize: 24 }}>{state.name}</div>}
@@ -182,13 +182,13 @@ function Home({ state, go, onOpenTheme }) {
         <IconBtn name="gear" onClick={() => go("settings")} label="Einstellungen" />
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
+      <div className="vt-home-stats" style={{ display: "flex", gap: 10, marginBottom: 18 }}>
         <StatChip icon="flame" value={state.streak + " Tage"} color="#F2701A" label="Streak" />
         <StatChip icon="bolt" value={state.xp + " XP"} color="var(--accent)" label="Erfahrungspunkte" />
       </div>
 
       {/* HERO start card */}
-      <div className="card" style={{ padding: 20, position: "relative", overflow: "hidden", marginBottom: 14,
+      <div className="card vt-home-hero" style={{ padding: 20, position: "relative", overflow: "hidden", marginBottom: 14,
         background: "linear-gradient(140deg, color-mix(in oklab,var(--accent) 16%, var(--surface)), var(--surface) 70%)" }}>
         <div style={{ position: "absolute", right: -10, bottom: -18, opacity: .95 }}><Voki mood="happy" size={120} float /></div>
         <div style={{ maxWidth: 220 }}>
@@ -199,9 +199,9 @@ function Home({ state, go, onOpenTheme }) {
         </div>
       </div>
 
-      <MasteryOverview state={state} />
+      <div className="vt-home-mastery"><MasteryOverview state={state} /></div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
+      <div className="vt-home-tiles" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
         <TileBtn icon="stethoscope" title="Test-Modus" sub="Alle Wörter prüfen" onClick={() => go("test")} />
         <TileBtn icon="list" title="Wortschatz" sub="Alle Vokabeln" onClick={() => go("overview")} />
         <TileBtn icon="trophy" title="Bestenliste" sub="Letzte Sessions" onClick={() => go("leaderboard")} />
