@@ -13,6 +13,44 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 function clone(s) { return JSON.parse(JSON.stringify(s)); }
 
 function App() {
+  const [session, setSession] = useA(null);
+  const [vocUser, setVocUser] = useA(null);
+  const [authLoading, setAuthLoading] = useA(true);
+  const [joinMsg, setJoinMsg] = useA(null);
+
+  // Auth: session bootstrap + listener
+  useAE(() => {
+    window._sb.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) loadVocUser(session.user.id);
+      else setAuthLoading(false);
+    });
+    const { data: { subscription } } = window._sb.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      if (session) {
+        await loadVocUser(session.user.id);
+        const code = sessionStorage.getItem("vt_join");
+        if (code) {
+          sessionStorage.removeItem("vt_join");
+          const { className, error } = await joinClass(code, session.user.id);
+          setJoinMsg(error ? "Klasse nicht gefunden." : `Du bist jetzt in: ${className} 🎉`);
+        }
+      } else {
+        setVocUser(null);
+        setAuthLoading(false);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function loadVocUser(userId) {
+    const { data } = await window._sb.from("voc_users").select("*").eq("id", userId).maybeSingle();
+    setVocUser(data || null);
+    setAuthLoading(false);
+  }
+
+  const joinCode = new URLSearchParams(window.location.search).get("join");
+
   const [state, setState] = useA(loadState);
   const [screen, setScreen] = useA(() => (loadState().onboarded ? "home" : "onboarding"));
   const [queue, setQueue] = useA(null);
@@ -70,6 +108,14 @@ function App() {
     setScreen("home");
   };
 
+  if (authLoading) return (
+    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="dim" style={{ fontSize: 15 }}>…</div>
+    </div>
+  );
+  if (!session) return <AuthScreen joinCode={joinCode} />;
+  if (!vocUser) return <VocSetup session={session} onDone={setVocUser} />;
+
   let view = null;
   if (screen === "onboarding") view = <Onboarding onDone={onboardDone} />;
   else if (screen === "home") view = <Home state={state} go={go} onOpenTheme={() => setThemeSheet(true)} />;
@@ -83,6 +129,14 @@ function App() {
 
   return (
     <React.Fragment>
+      {joinMsg && (
+        <div onClick={() => setJoinMsg(null)}
+          style={{ position: "absolute", top: 16, left: 16, right: 16, zIndex: 50,
+            background: "var(--correct-soft)", color: "var(--correct)", borderRadius: "var(--r-md)",
+            padding: "12px 16px", fontSize: 15, fontWeight: 600, textAlign: "center", cursor: "pointer" }}>
+          {joinMsg}
+        </div>
+      )}
       {view}
       {themeSheet && <ThemeSheet current={state.theme} onClose={() => setThemeSheet(false)}
         onPick={(id) => { setState(s => ({ ...s, theme: id })); setThemeSheet(false); }} />}
