@@ -414,11 +414,10 @@ html.vt-ios-keyboard-lock .vt-type-answer .btn{
     padding:6px 2px 16px !important;
   }
   .vt-home-stats{
-    position:absolute;
-    top:24px;
-    right:104px;
+    position:static;
+    grid-column:1 / -1;
     margin:0 !important;
-    justify-content:flex-end;
+    justify-content:flex-start;
   }
   .vt-home-hero{
     min-height:210px;
@@ -439,15 +438,15 @@ html.vt-ios-keyboard-lock .vt-type-answer .btn{
   }
   .vt-home-hero{
     grid-column:1;
-    grid-row:2 / span 2;
+    grid-row:3 / span 2;
   }
   .vt-home-mastery{
     grid-column:2;
-    grid-row:2;
+    grid-row:3;
   }
   .vt-home-tiles{
     grid-column:2;
-    grid-row:3;
+    grid-row:4;
     margin-top:0 !important;
   }
   .vt-quiz-top{
