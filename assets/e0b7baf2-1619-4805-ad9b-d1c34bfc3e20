@@ -108,13 +108,17 @@ function App() {
     setScreen("home");
   };
 
-  if (authLoading) return (
-    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div className="dim" style={{ fontSize: 15 }}>…</div>
-    </div>
-  );
-  if (!session) return <AuthScreen joinCode={joinCode} />;
-  if (!vocUser) return <VocSetup session={session} onDone={setVocUser} />;
+  const SKIP_AUTH = true; // TODO: auf false setzen wenn Auth bereit ist
+
+  if (!SKIP_AUTH) {
+    if (authLoading) return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="dim" style={{ fontSize: 15 }}>…</div>
+      </div>
+    );
+    if (!session) return <AuthScreen joinCode={joinCode} />;
+    if (!vocUser) return <VocSetup session={session} onDone={setVocUser} />;
+  }
 
   let view = null;
   if (screen === "onboarding") view = <Onboarding onDone={onboardDone} />;
