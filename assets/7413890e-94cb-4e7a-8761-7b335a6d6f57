@@ -29,6 +29,14 @@ function answerMatches(input, correct) {
   if ("to " + a === b || a === "to " + b) return true; // tolerate missing/extra "to"
   return false;
 }
+function extraInfo(word) {
+  if (!word) return null;
+  const bits = [];
+  if (word.pronunciation) bits.push(word.pronunciation);
+  if (word.note) bits.push(word.note);
+  if (word.example) bits.push(word.example);
+  return bits.length ? bits.join(" · ") : null;
+}
 
 /* ---------- MULTIPLE CHOICE ---------- */
 function MCQuestion({ q, onResolve, tweaks }) {
@@ -47,6 +55,7 @@ function MCQuestion({ q, onResolve, tweaks }) {
       <div>
         <div className="eyebrow" style={{ marginBottom: 14 }}>{dirLabel}</div>
         <div className="display" style={{ fontSize: 40, fontWeight: 600, lineHeight: 1.06 }}>{q.prompt}</div>
+        {q.dir === "en2de" && q.word.pronunciation && <div className="dim" style={{ marginTop: 6, fontSize: 15 }}>{q.word.pronunciation}</div>}
         {q.dir === "en2de" && <div className="dim" style={{ marginTop: 6, fontSize: 14 }}>englisch</div>}
       </div>
       <div style={{ display: "grid", gap: 12, marginTop: "auto" }}>
@@ -197,7 +206,7 @@ function MatchQuestion({ q, onResolve, tweaks }) {
 }
 
 /* ---------- FEEDBACK BAR ---------- */
-function FeedbackBar({ status, correct, xp, onNext, tweaks }) {
+function FeedbackBar({ status, correct, xp, info, onNext, tweaks }) {
   const ok = status === "first" || status === "second";
   useEffectQ(() => {
     const onKey = (e) => { if (e.key === "Enter") onNext(); };
@@ -220,6 +229,7 @@ function FeedbackBar({ status, correct, xp, onNext, tweaks }) {
             {ok && xp > 0 && <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 15 }}><Icon name="bolt" size={16} />+{xp}</span>}
           </div>
           {!ok && correct && <div style={{ fontSize: 15, color: "var(--text)", marginTop: 3 }}>Richtig: <b>{correct}</b></div>}
+          {info && <div style={{ fontSize: 13.5, color: "var(--text)", opacity: .78, marginTop: 5, lineHeight: 1.35 }}>{info}</div>}
         </div>
       </div>
       <button onClick={onNext} className="btn btn-block" style={{ marginTop: 14,
@@ -233,7 +243,7 @@ function FeedbackBar({ status, correct, xp, onNext, tweaks }) {
 /* ---------- QUIZ ORCHESTRATOR ---------- */
 function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
   const [idx, setIdx] = useStateQ(0);
-  const [fb, setFb] = useStateQ(null); // {status, correct, xp}
+  const [fb, setFb] = useStateQ(null); // {status, correct, xp, info}
   const resultsRef = useRefQ({ score: 0, total: 0, xp: 0, leitnerUpdates: [], wrongWords: [] });
   const q = queue[idx];
   const total = queue.length;
@@ -250,7 +260,7 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
       xp = mistakes === 0 ? 10 : 6;
       r.total += 1; r.score += (mistakes === 0 ? 1 : 1); // completing counts correct
       r.xp += xp;
-      setFb({ status: mistakes === 0 ? "first" : "second", correct: null, xp });
+      setFb({ status: mistakes === 0 ? "first" : "second", correct: null, xp, info: null });
       return;
     }
     const ok = outcome === "first" || outcome === "second";
@@ -259,7 +269,7 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
     if (mode !== "test") r.leitnerUpdates.push({ id: q.word.id, outcome });
     else r.leitnerUpdates.push({ id: q.word.id, outcome, testOnly: true });
     if (!ok) r.wrongWords.push(q.word.id);
-    setFb({ status: outcome, correct, xp });
+    setFb({ status: outcome, correct, xp, info: extraInfo(q.word) });
   };
 
   const next = () => {
@@ -284,9 +294,9 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
           <QComp q={q} onResolve={resolve} tweaks={tweaks} />
         </div>
       </div>
-      {fb && <FeedbackBar status={fb.status} correct={fb.correct} xp={fb.xp} onNext={next} tweaks={tweaks} />}
+      {fb && <FeedbackBar status={fb.status} correct={fb.correct} xp={fb.xp} info={fb.info} onNext={next} tweaks={tweaks} />}
     </div>
   );
 }
 
-Object.assign(window, { Quiz, MCQuestion, TypeQuestion, MatchQuestion, FeedbackBar, tone, answerMatches });
+Object.assign(window, { Quiz, MCQuestion, TypeQuestion, MatchQuestion, FeedbackBar, tone, answerMatches, extraInfo });

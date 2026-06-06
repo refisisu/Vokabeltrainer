@@ -323,7 +323,12 @@ function Overview({ state, go }) {
   let words = VOCAB.filter(w => getLevel(state, w.id) === lvl);
   if (query.trim()) {
     const ql = query.toLowerCase();
-    words = VOCAB.filter(w => w.en.toLowerCase().includes(ql) || w.de.toLowerCase().includes(ql));
+    words = VOCAB.filter(w =>
+      w.en.toLowerCase().includes(ql) ||
+      w.de.toLowerCase().includes(ql) ||
+      (w.note || "").toLowerCase().includes(ql) ||
+      (w.example || "").toLowerCase().includes(ql)
+    );
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
@@ -350,6 +355,11 @@ function Overview({ state, go }) {
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 16 }}>{w.en}</div>
                 <div className="dim" style={{ fontSize: 13.5 }}>{w.de}</div>
+                {(w.pronunciation || w.note || w.example) && (
+                  <div className="dim" style={{ fontSize: 12.5, lineHeight: 1.35, marginTop: 5 }}>
+                    {[w.pronunciation, w.note, w.example].filter(Boolean).join(" · ")}
+                  </div>
+                )}
               </div>
               <LevelPill level={getLevel(state, w.id)} small />
             </div>
@@ -472,6 +482,9 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
           <input ref={backupRef} type="file" accept=".json,application/json" style={{ display: "none" }}
             onChange={e => { importBackup(e.target.files?.[0]); e.target.value = ""; }} />
           <Row label={"CSV importieren (" + languageShort(state.language) + ")"} value={TOTAL_WORDS + " Wörter"} onClick={() => csvRef.current?.click()} chevron />
+          <div className="dim" style={{ fontSize: 12.5, lineHeight: 1.4, padding: "0 2px 10px" }}>
+            CSV: fremdwort, uebersetzung; optional beispiel, hinweis, aussprache.
+          </div>
           <Row label="Backup exportieren" onClick={downloadBackup} chevron />
           <Row label="Backup importieren" onClick={() => backupRef.current?.click()} chevron />
           {msg && <div className="dim" style={{ fontSize: 13.5, lineHeight: 1.45, padding: "8px 2px 14px" }}>{msg}</div>}

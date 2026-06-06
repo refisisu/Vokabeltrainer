@@ -119,8 +119,19 @@ function enrichVocabulary(lang, rows) {
   return rows.map((w, i) => {
     const en = String(w.en || w.term || "").trim();
     const de = String(w.de || "").trim();
+    const example = String(w.example || "").trim();
+    const note = String(w.note || "").trim();
+    const pronunciation = String(w.pronunciation || "").trim();
     const id = String(w.id || (lang + "-" + normalize(en) + "-" + i)).replace(/\s+/g, "-");
-    return { id, en, de, language: lang, example: lang === "en" ? (EXAMPLES[en.toLowerCase()] || null) : null };
+    return {
+      id,
+      en,
+      de,
+      language: lang,
+      example: example || (lang === "en" ? (EXAMPLES[en.toLowerCase()] || null) : null),
+      note: note || null,
+      pronunciation: pronunciation || null,
+    };
   }).filter(w => w.en && w.de);
 }
 function loadVocabulary(lang = ACTIVE_LANGUAGE) {
@@ -232,11 +243,30 @@ function parseCsv(text) {
   row.push(cell); rows.push(row);
   const clean = rows.map(r => r.map(c => c.trim())).filter(r => r.some(Boolean));
   const first = clean[0] || [];
-  const hasHeader = /^(fremdwort|term|wort|word|vokabel|anglais|franzoesisch|französisch|englisch)$/i.test(first[0] || "")
-    || /^(uebersetzung|übersetzung|deutsch|german)$/i.test(first[1] || "");
+  const headerKey = (s) => normalize(s).replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
+  const headers = first.map(headerKey);
+  const hasHeader = /^(fremdwort|term|wort|word|vokabel|anglais|franzoesisch|franzoesisch|englisch|english|french)$/.test(headers[0] || "")
+    || /^(uebersetzung|deutsch|german)$/.test(headers[1] || "");
   const body = hasHeader ? clean.slice(1) : clean;
+  const idx = (names, fallback) => {
+    if (!hasHeader) return fallback;
+    const found = headers.findIndex(h => names.includes(h));
+    return found >= 0 ? found : fallback;
+  };
+  const termIdx = idx(["fremdwort", "term", "wort", "word", "vokabel", "englisch", "english", "franzoesisch", "french"], 0);
+  const deIdx = idx(["uebersetzung", "deutsch", "german"], 1);
+  const exampleIdx = idx(["beispiel", "beispielsatz", "example", "sentence", "satz"], 2);
+  const noteIdx = idx(["hinweis", "info", "notiz", "note", "erklaerung", "erklaerung"], 3);
+  const pronunciationIdx = idx(["aussprache", "lautschrift", "pronunciation", "ipa"], 4);
   const seen = new Set();
-  return body.map((r, i) => ({ en: r[0], de: r[1], id: "csv-" + i }))
+  return body.map((r, i) => ({
+    en: r[termIdx],
+    de: r[deIdx],
+    example: r[exampleIdx],
+    note: r[noteIdx],
+    pronunciation: r[pronunciationIdx],
+    id: "csv-" + i
+  }))
     .filter(w => {
       const key = normalize(w.en);
       if (!w.en || !w.de || seen.has(key)) return false;
