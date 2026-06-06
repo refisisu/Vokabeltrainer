@@ -15,16 +15,35 @@ async function copyToClipboard(text, setCopied) {
   } catch (e) {}
 }
 
+function parseCsvLine(line) {
+  const fields = [];
+  let field = "", inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === ';' && !inQuotes) { fields.push(field.trim()); field = ""; }
+    else { field += ch; }
+  }
+  fields.push(field.trim());
+  return fields;
+}
+
 function parseWords(raw) {
-  return raw.split("\n")
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => {
-      const sep = line.includes(";") ? ";" : line.includes(" - ") ? " - " : ",";
-      const [original, ...rest] = line.split(sep);
-      return { original: original?.trim(), translation: rest.join(sep).trim() };
-    })
-    .filter(w => w.original && w.translation);
+  const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return [];
+  // Header-Zeile überspringen
+  const first = lines[0].toLowerCase();
+  const start = (first.startsWith("fremdwort") || first.startsWith("word") || first.startsWith("original")) ? 1 : 0;
+  return lines.slice(start).map(line => {
+    const f = parseCsvLine(line);
+    if (f.length >= 2) {
+      return { original: f[0], translation: f[1], beispiel: f[2] || "", hinweis: f[3] || "", aussprache: f[4] || "" };
+    }
+    // Fallback für einfaches Format (Hund - chien)
+    const sep = line.includes(" - ") ? " - " : ",";
+    const [original, ...rest] = line.split(sep);
+    return { original: original?.trim(), translation: rest.join(sep).trim(), beispiel: "", hinweis: "", aussprache: "" };
+  }).filter(w => w.original && w.translation);
 }
 
 /* ── Leere-Zustand-Komponente ── */
@@ -530,10 +549,15 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
             </div>
             <div className="card" style={{ overflow: "hidden" }}>
               {preview.slice(0, 8).map((w, i) => (
-                <div key={i} style={{ display: "flex", gap: 12, padding: "10px 14px",
+                <div key={i} style={{ padding: "10px 14px",
                   borderBottom: i < Math.min(preview.length, 8) - 1 ? "1px solid var(--border)" : "none" }}>
-                  <span style={{ flex: 1, fontWeight: 500 }}>{w.original}</span>
-                  <span style={{ flex: 1, color: "var(--text-dim)" }}>{w.translation}</span>
+                  <div style={{ display: "flex", gap: 12, marginBottom: (w.beispiel || w.hinweis || w.aussprache) ? 4 : 0 }}>
+                    <span style={{ flex: 1, fontWeight: 500 }}>{w.original}</span>
+                    <span style={{ flex: 1, color: "var(--text-dim)" }}>{w.translation}</span>
+                    {w.aussprache && <span style={{ color: "var(--text-dim)", fontSize: 13, fontStyle: "italic" }}>{w.aussprache}</span>}
+                  </div>
+                  {w.beispiel && <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 2 }}>📖 {w.beispiel}</div>}
+                  {w.hinweis && <div style={{ fontSize: 12, color: "var(--text-dim)", opacity: 0.7 }}>💡 {w.hinweis}</div>}
                 </div>
               ))}
               {preview.length > 8 && (
