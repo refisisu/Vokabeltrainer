@@ -95,6 +95,7 @@ function defaultStore() {
     version: 2,
     activeLanguage: "en",
     profile: { onboarded: false, name: "", theme: "city" },
+    settings: { parentPin: "1111" },
     progress: { en: emptyProgress(), fr: emptyProgress() },
   };
 }
@@ -167,6 +168,7 @@ function readStore() {
         ...store,
         ...parsed,
         profile: { ...store.profile, ...(parsed.profile || {}) },
+        settings: { ...store.settings, ...(parsed.settings || {}) },
         progress: {
           en: { ...emptyProgress(), ...(parsed.progress?.en || {}) },
           fr: { ...emptyProgress(), ...(parsed.progress?.fr || {}) },
@@ -223,6 +225,27 @@ function resetAll() {
     localStorage.removeItem(VOCAB_KEY("en"));
     localStorage.removeItem(VOCAB_KEY("fr"));
   } catch (e) {}
+}
+function getParentPin() {
+  return String(readStore().settings?.parentPin || "1111");
+}
+function verifyParentPin(pin) {
+  return String(pin || "") === getParentPin();
+}
+function changeParentPin(nextPin) {
+  const clean = String(nextPin || "").trim();
+  if (!/^\d{4,8}$/.test(clean)) throw new Error("Der PIN muss aus 4 bis 8 Ziffern bestehen.");
+  const store = readStore();
+  store.settings = { ...(store.settings || {}), parentPin: clean };
+  localStorage.setItem(LS_KEY, JSON.stringify(store));
+}
+function hasImportedVocabulary(lang = ACTIVE_LANGUAGE) {
+  try { return !!localStorage.getItem(VOCAB_KEY(normalizeLang(lang))); } catch (e) { return false; }
+}
+function deleteVocabulary(lang = ACTIVE_LANGUAGE) {
+  const active = normalizeLang(lang);
+  localStorage.removeItem(VOCAB_KEY(active));
+  if (active === ACTIVE_LANGUAGE) refreshVocabulary(active);
 }
 
 function parseCsv(text) {
@@ -469,6 +492,7 @@ const THEMES = [
 Object.assign(window, {
   VOCAB, TOTAL_WORDS, byId, THEMES, LANGUAGES,
   loadState, saveState, resetAll, defaultState, setActiveLanguage, switchLanguage,
+  verifyParentPin, changeParentPin, hasImportedVocabulary, deleteVocabulary,
   importVocabularyCsv, downloadBackup, restoreBackupText, languageLabel, languageShort,
   getLevel, dueWords, masteryDistribution, accuracy,
   buildSession, buildTest, makeQuestion, applyResult, finishSession,

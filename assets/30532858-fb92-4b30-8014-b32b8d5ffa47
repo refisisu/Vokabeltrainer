@@ -424,6 +424,15 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
   const [msg, setMsg] = useS("");
   const saveName = () => setState(s => ({ ...s, name: name.trim() }));
   const curTheme = THEMES.find(t => t.id === state.theme);
+  const requireParentPin = (label) => {
+    const pin = window.prompt("Eltern-PIN für " + label);
+    if (pin === null) return false;
+    if (!verifyParentPin(pin)) {
+      setMsg("Eltern-PIN falsch.");
+      return false;
+    }
+    return true;
+  };
   const readFile = (file, cb) => {
     if (!file) return;
     const reader = new FileReader();
@@ -441,6 +450,7 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
   });
   const importBackup = (file) => readFile(file, (text) => {
     if (!window.confirm("Backup importieren? Der aktuelle Stand wird überschrieben.")) return;
+    if (!requireParentPin("Backup importieren")) return;
     try {
       restoreBackupText(text);
       window.location.reload();
@@ -448,6 +458,34 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
       setMsg(e.message || "Backup konnte nicht gelesen werden.");
     }
   });
+  const deleteCurrentVocabulary = () => {
+    if (!hasImportedVocabulary(state.language)) {
+      setMsg("Für " + languageLabel(state.language) + " ist keine importierte Liste gespeichert.");
+      return;
+    }
+    if (!requireParentPin("Vokabelliste löschen")) return;
+    if (!window.confirm("Importierte Vokabelliste für " + languageLabel(state.language) + " löschen?")) return;
+    deleteVocabulary(state.language);
+    setMsg("Importierte Vokabelliste für " + languageLabel(state.language) + " gelöscht.");
+    setState(s => ({ ...s }));
+  };
+  const changePin = () => {
+    if (!requireParentPin("PIN ändern")) return;
+    const next = window.prompt("Neuen Eltern-PIN eingeben (4 bis 8 Ziffern)");
+    if (next === null) return;
+    const again = window.prompt("Neuen Eltern-PIN wiederholen");
+    if (again === null) return;
+    if (next !== again) {
+      setMsg("Die neuen PINs stimmen nicht überein.");
+      return;
+    }
+    try {
+      changeParentPin(next);
+      setMsg("Eltern-PIN geändert.");
+    } catch (e) {
+      setMsg(e.message || "PIN konnte nicht geändert werden.");
+    }
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <TopBar left={<IconBtn name="back" onClick={() => go("home")} label="Zurück" />} title="Einstellungen" right={<span />} />
@@ -481,19 +519,26 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
             onChange={e => { importCsv(e.target.files?.[0]); e.target.value = ""; }} />
           <input ref={backupRef} type="file" accept=".json,application/json" style={{ display: "none" }}
             onChange={e => { importBackup(e.target.files?.[0]); e.target.value = ""; }} />
-          <Row label={"CSV importieren (" + languageShort(state.language) + ")"} value={TOTAL_WORDS + " Wörter"} onClick={() => csvRef.current?.click()} chevron />
+          <Row label={"CSV importieren (" + languageShort(state.language) + ")"} value={TOTAL_WORDS + " Wörter"}
+            onClick={() => { if (requireParentPin("CSV importieren")) csvRef.current?.click(); }} chevron />
           <div className="dim" style={{ fontSize: 12.5, lineHeight: 1.4, padding: "0 2px 10px" }}>
             CSV: fremdwort, uebersetzung; optional beispiel, hinweis, aussprache.
           </div>
+          <Row label={"Importierte Liste löschen (" + languageShort(state.language) + ")"} onClick={deleteCurrentVocabulary} chevron />
           <Row label="Backup exportieren" onClick={downloadBackup} chevron />
           <Row label="Backup importieren" onClick={() => backupRef.current?.click()} chevron />
+          <Row label="Eltern-PIN ändern" onClick={changePin} chevron />
           {msg && <div className="dim" style={{ fontSize: 13.5, lineHeight: 1.45, padding: "8px 2px 14px" }}>{msg}</div>}
           <div className="dim" style={{ fontSize: 13.5, lineHeight: 1.5, marginBottom: 10 }}>
             Setzt Lernstand, XP, Streak und Bestenliste zurück. Zum Bestätigen <b style={{ color: "var(--text)" }}>reset</b> eintippen.
           </div>
           <input className="field" style={{ fontSize: 16, padding: "12px 16px" }} value={resetText} onChange={e => setResetText(e.target.value)} placeholder="reset" autoCapitalize="off" />
           <button className="btn btn-block" disabled={resetText.trim().toLowerCase() !== "reset"}
-            onClick={() => { resetAll(); window.location.reload(); }}
+            onClick={() => {
+              if (!requireParentPin("Alles zurücksetzen")) return;
+              resetAll();
+              window.location.reload();
+            }}
             style={{ marginTop: 10, background: resetText.trim().toLowerCase() === "reset" ? "var(--wrong)" : "var(--surface-2)",
               color: resetText.trim().toLowerCase() === "reset" ? "#fff" : "var(--text-dim)" }}>
             Alles zurücksetzen
