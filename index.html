@@ -362,8 +362,8 @@ html.vt-ios-keyboard-lock body{
 html.vt-ios-keyboard-lock #stage{
   align-items:flex-start;
   justify-content:center;
-  height:100%;
-  min-height:100%;
+  height:var(--vt-visible-height, 100%);
+  min-height:var(--vt-visible-height, 100%);
   overflow:hidden;
 }
 html.vt-ios-keyboard-lock #device{
@@ -372,6 +372,29 @@ html.vt-ios-keyboard-lock #device{
 }
 @media(min-width:480px){
   html.vt-ios-keyboard-lock #device{height:var(--vt-device-lock-height, min(900px, 96vh));}
+}
+html.vt-ios-keyboard-lock .vt-quiz-scroll{
+  overflow:hidden;
+  padding-bottom:14px !important;
+}
+html.vt-ios-keyboard-lock .vt-type-question{
+  min-height:0;
+  gap:14px !important;
+}
+html.vt-ios-keyboard-lock .vt-type-prompt{
+  flex:0 1 auto;
+}
+html.vt-ios-keyboard-lock .vt-type-answer{
+  margin-top:auto !important;
+  padding-bottom:max(8px, env(safe-area-inset-bottom));
+  flex:0 0 auto;
+}
+html.vt-ios-keyboard-lock .vt-type-answer .field{
+  font-size:20px;
+  padding:14px 16px;
+}
+html.vt-ios-keyboard-lock .vt-type-answer .btn{
+  padding:14px 18px;
 }
 /* star layer for space theme */
 #starfield{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity var(--t-slow);}
@@ -469,7 +492,7 @@ body.theme-space #starfield{opacity:1;}
 <script type="text/babel" src="assets/16fc9cff-c18a-457e-8bd4-8066bf3491fa"></script>
 <script type="text/babel" src="assets/e27148f1-1cce-4d1c-96c3-ddb0157e0253"></script>
 <script type="text/babel" src="assets/3b6407df-8e42-4eb2-91a2-4bdad3b47644"></script>
-<script type="text/babel" src="assets/7413890e-94cb-4e7a-8761-7b335a6d6f57"></script>
+<script type="text/babel" src="assets/7413890e-94cb-4e7a-8761-7b335a6d6f57?v=7"></script>
 <script type="text/babel" src="assets/30532858-fb92-4b30-8014-b32b8d5ffa47"></script>
 <script type="text/babel" src="assets/e0b7baf2-1619-4805-ad9b-d1c34bfc3e20"></script>
 
@@ -500,21 +523,31 @@ body.theme-space #starfield{opacity:1;}
     document.body.scrollTop = 0;
   }
 
+  function updateKeyboardViewport() {
+    if (!locked) return;
+    var vv = window.visualViewport;
+    var visibleHeight = Math.round(vv ? vv.height : window.innerHeight);
+    var maxDeviceHeight = window.matchMedia("(min-width:480px)").matches
+      ? Math.min(900, Math.round(visibleHeight * 0.96))
+      : Math.min(932, visibleHeight);
+    root.style.setProperty("--vt-visible-height", visibleHeight + "px");
+    root.style.setProperty("--vt-device-lock-height", Math.max(360, maxDeviceHeight) + "px");
+    keepAtTop();
+  }
+
   function lockKeyboardViewport() {
     clearTimeout(unlockTimer);
     if (locked) {
+      updateKeyboardViewport();
       keepAtTop();
       return;
     }
     locked = true;
     scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-    var device = document.getElementById("device");
-    if (device) {
-      root.style.setProperty("--vt-device-lock-height", device.getBoundingClientRect().height + "px");
-    }
     root.classList.add("vt-ios-keyboard-lock");
-    document.body.style.top = "-" + scrollY + "px";
-    requestAnimationFrame(keepAtTop);
+    document.body.style.top = "0";
+    updateKeyboardViewport();
+    requestAnimationFrame(updateKeyboardViewport);
   }
 
   function unlockKeyboardViewport() {
@@ -523,6 +556,7 @@ body.theme-space #starfield{opacity:1;}
       if (isEditable(document.activeElement)) return;
       locked = false;
       root.classList.remove("vt-ios-keyboard-lock");
+      root.style.removeProperty("--vt-visible-height");
       root.style.removeProperty("--vt-device-lock-height");
       document.body.style.top = "";
       window.scrollTo(0, scrollY);
@@ -535,8 +569,8 @@ body.theme-space #starfield{opacity:1;}
   document.addEventListener("focusout", unlockKeyboardViewport, true);
   window.addEventListener("scroll", keepAtTop, { passive: false });
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", keepAtTop);
-    window.visualViewport.addEventListener("scroll", keepAtTop);
+    window.visualViewport.addEventListener("resize", updateKeyboardViewport);
+    window.visualViewport.addEventListener("scroll", updateKeyboardViewport);
   }
 })();
 
