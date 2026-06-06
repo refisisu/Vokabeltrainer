@@ -108,7 +108,7 @@ function App() {
     setScreen("home");
   };
 
-  const SKIP_AUTH = true; // TODO: auf false setzen wenn Auth bereit ist
+  const SKIP_AUTH = false;
 
   if (!SKIP_AUTH) {
     if (authLoading) return (
