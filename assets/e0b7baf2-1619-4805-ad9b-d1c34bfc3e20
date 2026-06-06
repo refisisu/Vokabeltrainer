@@ -122,7 +122,8 @@ function App() {
 
   let view = null;
   if (screen === "onboarding") view = <Onboarding onDone={onboardDone} />;
-  else if (screen === "home") view = <Home state={state} go={go} onOpenTheme={() => setThemeSheet(true)} />;
+  else if (screen === "home") view = <Home state={state} go={go} onOpenTheme={() => setThemeSheet(true)} vocUser={vocUser} />;
+  else if (screen === "teacher") view = <TeacherDashboard session={session} go={go} />;
   else if (screen === "quiz") view = <Quiz queue={queue} mode={mode} tweaks={tweaks} onFinish={onFinish} onExit={() => go("home")} />;
   else if (screen === "result") view = <Result result={lastResult} mode={mode} state={state} go={go} tweaks={tweaks} />;
   else if (screen === "diagnose") view = <Diagnose result={lastResult} go={go} tweaks={tweaks} />;

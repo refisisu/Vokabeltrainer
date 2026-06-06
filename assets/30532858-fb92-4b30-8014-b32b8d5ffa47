@@ -164,7 +164,7 @@ function MasteryOverview({ state }) {
 }
 
 /* ---------------- HOME ---------------- */
-function Home({ state, go, onOpenTheme }) {
+function Home({ state, go, onOpenTheme, vocUser }) {
   const hasWords = TOTAL_WORDS > 0;
   const dueCount = hasWords ? Math.min(15, dueWords(state).length || TOTAL_WORDS) : 0;
   return (
@@ -206,6 +206,9 @@ function Home({ state, go, onOpenTheme }) {
         <TileBtn icon="list" title="Wortschatz" sub="Alle Vokabeln" onClick={() => go("overview")} />
         <TileBtn icon="trophy" title="Bestenliste" sub="Letzte Sessions" onClick={() => go("leaderboard")} />
         <TileBtn icon="target" title="Eltern" sub="Lernstand ansehen" onClick={() => go("parent")} />
+        {vocUser?.role === "teacher" && (
+          <TileBtn icon="list" title="Klassen" sub="Listen & Einladungen" onClick={() => go("teacher")} />
+        )}
       </div>
     </div>
   );
