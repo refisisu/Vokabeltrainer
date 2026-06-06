@@ -1,5 +1,5 @@
 // vt-app.jsx — root: state machine, routing, theme, tweaks.
-const { useState: useA, useEffect: useAE, useRef: useAR } = React;
+const { useState: useA, useEffect: useAE } = React;
 
 const ACTIVE_TYPES = ["mc", "type", "cloze", "match"];
 
@@ -35,6 +35,14 @@ function App() {
       setQueue(buildSession(state, ACTIVE_TYPES, 15)); setMode("session"); setScreen("quiz");
     } else if (target === "test") {
       setQueue(buildTest(state)); setMode("test"); setScreen("quiz");
+    } else if (target === "parent") {
+      const pin = window.prompt("Eltern-PIN");
+      if (pin === null) return;
+      if (!verifyParentPin(pin)) {
+        window.alert("Eltern-PIN falsch.");
+        return;
+      }
+      setScreen("parent");
     } else {
       setScreen(target);
     }
@@ -70,6 +78,7 @@ function App() {
   else if (screen === "diagnose") view = <Diagnose result={lastResult} go={go} tweaks={tweaks} />;
   else if (screen === "overview") view = <Overview state={state} go={go} />;
   else if (screen === "leaderboard") view = <Leaderboard state={state} go={go} />;
+  else if (screen === "parent") view = <ParentDashboard state={state} setState={setState} go={go} />;
   else if (screen === "settings") view = <Settings state={state} setState={setState} go={go} onOpenTheme={() => setThemeSheet(true)} tweaks={tweaks} setTweak={setTweak} />;
 
   return (
@@ -90,4 +99,15 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+// Parent view: render read-only view if URL contains #pv= snapshot
+(function () {
+  let pvData = null;
+  try {
+    const hash = window.location.hash;
+    if (hash.startsWith("#pv=")) {
+      pvData = JSON.parse(decodeURIComponent(escape(atob(hash.slice(4)))));
+    }
+  } catch (e) {}
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(pvData ? <ParentReadView data={pvData} /> : <App />);
+})();

@@ -91,25 +91,64 @@ function emptyProgress() {
 }
 function defaultStore() {
   return {
-    version: 2,
+    version: 3,
     activeLanguage: "en",
+    activeChildId: "child-1",
     profile: { onboarded: false, name: "", theme: "city" },
     settings: { parentPin: "1111" },
     progress: { en: emptyProgress(), fr: emptyProgress() },
+    children: {},
   };
+}
+function createChild(name = "", theme = "city") {
+  const id = "child-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+  return {
+    id,
+    profile: { onboarded: true, name: String(name || "").trim(), theme: theme || "city" },
+    progress: { en: emptyProgress(), fr: emptyProgress() },
+  };
+}
+function normalizeChild(raw, fallbackId = "child-1") {
+  return {
+    id: raw?.id || fallbackId,
+    profile: { onboarded: !!raw?.profile?.onboarded, name: raw?.profile?.name || "", theme: raw?.profile?.theme || "city" },
+    progress: {
+      en: { ...emptyProgress(), ...(raw?.progress?.en || {}) },
+      fr: { ...emptyProgress(), ...(raw?.progress?.fr || {}) },
+    },
+  };
+}
+function migrateChildren(store) {
+  const sourceChildren = store.children && typeof store.children === "object" ? store.children : {};
+  const children = {};
+  Object.keys(sourceChildren).forEach(id => { children[id] = normalizeChild(sourceChildren[id], id); });
+  if (!Object.keys(children).length) {
+    const id = store.activeChildId || "child-1";
+    children[id] = normalizeChild({
+      id,
+      profile: store.profile || defaultStore().profile,
+      progress: store.progress || defaultStore().progress,
+    }, id);
+  }
+  let activeChildId = store.activeChildId && children[store.activeChildId] ? store.activeChildId : Object.keys(children)[0];
+  return { children, activeChildId };
 }
 function composeState(store, lang) {
   const active = normalizeLang(lang || store.activeLanguage);
+  const { children, activeChildId } = migrateChildren(store);
+  const child = children[activeChildId] || normalizeChild(null, activeChildId);
   return {
-    ...store.profile,
+    childId: activeChildId,
+    ...child.profile,
     ...emptyProgress(),
-    ...(store.progress?.[active] || {}),
+    ...(child.progress?.[active] || {}),
     language: active,
   };
 }
 function splitState(s) {
-  const { onboarded, name, theme, language, xp, streak, lastSessionDate, leitner, history, sessionsCount } = s;
+  const { childId, onboarded, name, theme, language, xp, streak, lastSessionDate, leitner, history, sessionsCount } = s;
   return {
+    childId: childId || "child-1",
     profile: { onboarded: !!onboarded, name: name || "", theme: theme || "city" },
     language: normalizeLang(language || ACTIVE_LANGUAGE),
     progress: { xp, streak, lastSessionDate, leitner: leitner || {}, history: history || [], sessionsCount: sessionsCount || 0 },
@@ -163,15 +202,14 @@ function readStore() {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+      const merged = { ...store, ...parsed };
+      const migrated = migrateChildren(merged);
       return {
         ...store,
         ...parsed,
-        profile: { ...store.profile, ...(parsed.profile || {}) },
         settings: { ...store.settings, ...(parsed.settings || {}) },
-        progress: {
-          en: { ...emptyProgress(), ...(parsed.progress?.en || {}) },
-          fr: { ...emptyProgress(), ...(parsed.progress?.fr || {}) },
-        },
+        children: migrated.children,
+        activeChildId: migrated.activeChildId,
         activeLanguage: normalizeLang(parsed.activeLanguage),
       };
     }
@@ -179,11 +217,12 @@ function readStore() {
     if (legacy) {
       const old = { ...defaultState("en"), ...JSON.parse(legacy), language: "en" };
       const parts = splitState(old);
+      const child = normalizeChild({ id: "child-1", profile: parts.profile, progress: { en: parts.progress } }, "child-1");
       return {
         ...store,
         activeLanguage: "en",
-        profile: parts.profile,
-        progress: { ...store.progress, en: parts.progress },
+        activeChildId: child.id,
+        children: { [child.id]: child },
       };
     }
   } catch (e) {}
@@ -204,8 +243,11 @@ function saveState(s) {
     const store = readStore();
     const parts = splitState(s);
     store.activeLanguage = parts.language;
-    store.profile = parts.profile;
-    store.progress = { ...store.progress, [parts.language]: parts.progress };
+    const child = store.children[parts.childId] || normalizeChild({ id: parts.childId, profile: parts.profile }, parts.childId);
+    child.profile = parts.profile;
+    child.progress = { ...child.progress, [parts.language]: parts.progress };
+    store.children = { ...store.children, [parts.childId]: child };
+    store.activeChildId = parts.childId;
     localStorage.setItem(LS_KEY, JSON.stringify(store));
   } catch (e) {}
 }
@@ -216,6 +258,55 @@ function switchLanguage(currentState, nextLang) {
   localStorage.setItem(LS_KEY, JSON.stringify(store));
   setActiveLanguage(store.activeLanguage);
   return composeState(store, store.activeLanguage);
+}
+function listChildren() {
+  const store = readStore();
+  const { children } = migrateChildren(store);
+  return Object.values(children);
+}
+function addChildProfile(name, theme = "city") {
+  const cleanName = String(name || "").trim();
+  if (!cleanName) throw new Error("Bitte einen Namen eingeben.");
+  const store = readStore();
+  const child = createChild(cleanName, theme);
+  store.children = { ...store.children, [child.id]: child };
+  store.activeChildId = child.id;
+  localStorage.setItem(LS_KEY, JSON.stringify(store));
+  return composeState(store, store.activeLanguage);
+}
+function switchChild(currentState, childId) {
+  saveState(currentState);
+  const store = readStore();
+  if (!store.children[childId]) return currentState;
+  store.activeChildId = childId;
+  localStorage.setItem(LS_KEY, JSON.stringify(store));
+  return composeState(store, store.activeLanguage);
+}
+function renameChild(childId, name) {
+  const cleanName = String(name || "").trim();
+  const store = readStore();
+  if (!store.children[childId] || !cleanName) return;
+  store.children[childId].profile = { ...store.children[childId].profile, name: cleanName };
+  localStorage.setItem(LS_KEY, JSON.stringify(store));
+}
+function progressForChild(child, lang = ACTIVE_LANGUAGE) {
+  return { ...emptyProgress(), ...(child?.progress?.[normalizeLang(lang)] || {}) };
+}
+function childSummary(child, lang = ACTIVE_LANGUAGE) {
+  const progress = progressForChild(child, lang);
+  const words = loadVocabulary(lang);
+  const totalWords = words.length;
+  const levels = [0, 0, 0, 0, 0];
+  words.forEach(w => {
+    const lvl = progress.leitner?.[w.id]?.level || 1;
+    levels[Math.max(1, Math.min(5, lvl)) - 1] += 1;
+  });
+  const attempts = Object.values(progress.leitner || {}).reduce((sum, rec) => sum + (rec.correct || 0) + (rec.wrong || 0), 0);
+  const mastered = levels[4] || 0;
+  const best = progress.history.length ? Math.max(...progress.history.map(h => h.pct || 0)) : 0;
+  const last = progress.history[0] || null;
+  const pctMastered = totalWords ? Math.round(mastered / totalWords * 100) : 0;
+  return { child, lang: normalizeLang(lang), progress, totalWords, levels, attempts, mastered, pctMastered, best, last };
 }
 function resetAll() {
   try {
@@ -306,7 +397,7 @@ function importVocabularyCsv(lang, text) {
 }
 function exportBackup() {
   return {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     state: readStore(),
     vocab: {
@@ -329,8 +420,12 @@ function downloadBackup() {
 }
 function restoreBackupText(text) {
   const data = JSON.parse(text);
-  if (!data || data.version !== 2 || !data.state || !data.state.progress) throw new Error("Backup-Format nicht erkannt.");
-  localStorage.setItem(LS_KEY, JSON.stringify(data.state));
+  if (!data || ![2, 3].includes(data.version) || !data.state) throw new Error("Backup-Format nicht erkannt.");
+  const restored = { ...defaultStore(), ...data.state };
+  const migrated = migrateChildren(restored);
+  restored.children = migrated.children;
+  restored.activeChildId = migrated.activeChildId;
+  localStorage.setItem(LS_KEY, JSON.stringify(restored));
   if (data.vocab?.en) localStorage.setItem(VOCAB_KEY("en"), JSON.stringify(data.vocab.en));
   if (data.vocab?.fr) localStorage.setItem(VOCAB_KEY("fr"), JSON.stringify(data.vocab.fr));
 }
@@ -478,7 +573,75 @@ function finishSession(state, score, total, mode) {
   }
   const pct = total ? Math.round((score / total) * 100) : 0;
   state.history.unshift({ date: today, ts: Date.now(), score, total, pct, mode });
-  state.history = state.history.slice(0, 10);
+  state.history = state.history.slice(0, 30);
+}
+
+function weeklyActivity(progress) {
+  const days = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const count = (progress.history || []).filter(h => h.date === dateStr && h.mode !== "test").length;
+    days.push({ date: dateStr, count, label: d.toLocaleDateString("de-DE", { weekday: "short" }).slice(0, 2) });
+  }
+  return days;
+}
+
+function relativeDate(dateStr) {
+  if (!dateStr) return "Nie";
+  try {
+    const diffDays = Math.round((Date.now() - new Date(dateStr + "T12:00:00")) / 86400000);
+    if (diffDays === 0) return "Heute";
+    if (diffDays === 1) return "Gestern";
+    if (diffDays < 7) return "vor " + diffDays + " Tagen";
+    if (diffDays < 30) return "vor " + Math.round(diffDays / 7) + " Wochen";
+    return "vor " + Math.round(diffDays / 30) + " Mon.";
+  } catch (e) { return dateStr; }
+}
+
+function exportParentSnapshot() {
+  const store = readStore();
+  const { children } = migrateChildren(store);
+  const langs = ["en", "fr"];
+  return {
+    v: 1,
+    ts: todayStr(),
+    children: Object.values(children).map(child => {
+      const progress = {};
+      langs.forEach(lang => {
+        const prog = { ...emptyProgress(), ...(child.progress?.[lang] || {}) };
+        const words = loadVocabulary(lang);
+        if (prog.sessionsCount === 0 && !words.length) return;
+        const levels = [0, 0, 0, 0, 0];
+        words.forEach(w => { levels[Math.max(0, Math.min(4, (prog.leitner?.[w.id]?.level || 1) - 1))]++; });
+        progress[lang] = {
+          xp: prog.xp || 0,
+          streak: prog.streak || 0,
+          sessions: prog.sessionsCount || 0,
+          last: prog.lastSessionDate || null,
+          levels,
+          totalWords: words.length,
+          history: (prog.history || []).slice(0, 7).map(h => ({
+            d: h.date, s: h.score, t: h.total, p: h.pct, m: h.mode === "test" ? 1 : 0
+          }))
+        };
+      });
+      if (!Object.keys(progress).length) {
+        const lang = store.activeLanguage || "en";
+        progress[lang] = { xp: 0, streak: 0, sessions: 0, last: null, levels: [0,0,0,0,0], totalWords: 0, history: [] };
+      }
+      return { id: child.id, name: child.profile.name || "Kind", progress };
+    })
+  };
+}
+
+function makeParentShareUrl() {
+  try {
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(exportParentSnapshot()))));
+    return window.location.origin + window.location.pathname.replace(/\/+$/, "") + "#pv=" + b64;
+  } catch (e) { return null; }
 }
 
 const THEMES = [
@@ -491,11 +654,13 @@ const THEMES = [
 Object.assign(window, {
   VOCAB, TOTAL_WORDS, byId, THEMES, LANGUAGES,
   loadState, saveState, resetAll, defaultState, setActiveLanguage, switchLanguage,
+  listChildren, addChildProfile, switchChild, renameChild, childSummary,
   verifyParentPin, changeParentPin, hasImportedVocabulary, deleteVocabulary,
   importVocabularyCsv, downloadBackup, restoreBackupText, languageLabel, languageShort,
   getLevel, dueWords, masteryDistribution, accuracy,
   buildSession, buildTest, makeQuestion, applyResult, finishSession,
   pick, todayStr,
+  weeklyActivity, relativeDate, exportParentSnapshot, makeParentShareUrl,
 });
 
 refreshVocabulary(ACTIVE_LANGUAGE);

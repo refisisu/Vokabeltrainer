@@ -205,7 +205,7 @@ function Home({ state, go, onOpenTheme }) {
         <TileBtn icon="stethoscope" title="Test-Modus" sub="Alle Wörter prüfen" onClick={() => go("test")} />
         <TileBtn icon="list" title="Wortschatz" sub="Alle Vokabeln" onClick={() => go("overview")} />
         <TileBtn icon="trophy" title="Bestenliste" sub="Letzte Sessions" onClick={() => go("leaderboard")} />
-        <TileBtn icon="gear" title="Einstellungen" sub="Theme & mehr" onClick={() => go("settings")} />
+        <TileBtn icon="target" title="Eltern" sub="Lernstand ansehen" onClick={() => go("parent")} />
       </div>
     </div>
   );
@@ -415,6 +415,261 @@ function fmtDate(d) {
   try { const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("de-DE", { day: "2-digit", month: "short" }); } catch (e) { return d; }
 }
 
+/* ---------------- WEEK CHART ---------------- */
+function WeekChart({ history }) {
+  const days = weeklyActivity({ history: history || [] });
+  const max = Math.max(...days.map(d => d.count), 1);
+  return (
+    <div>
+      <div className="dim" style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 8 }}>
+        Letzte 7 Tage
+      </div>
+      <div style={{ display: "flex", gap: 5, alignItems: "flex-end", height: 52 }}>
+        {days.map((day, i) => (
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end" }}>
+              <div style={{
+                width: "100%",
+                height: day.count > 0 ? Math.max(8, (day.count / max) * 36) + "px" : "3px",
+                background: day.count > 0 ? "var(--accent)" : "var(--surface-3)",
+                borderRadius: "4px 4px 2px 2px",
+                transition: "height .35s var(--ease)"
+              }} />
+            </div>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-dim)", fontFamily: "var(--font-ui)" }}>{day.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- QR SHARE MODAL ---------------- */
+function QRShareModal({ onClose }) {
+  const [copied, setCopied] = useS(false);
+  const url = makeParentShareUrl();
+  const canShare = !!(navigator.share && url);
+  const canCopy = !!(navigator.clipboard && url);
+
+  const copy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    }).catch(() => {});
+  };
+
+  const share = () => {
+    navigator.share({ title: "Lernstand – Vokabeltrainer", url }).catch(() => {});
+  };
+
+  const qrImgUrl = url
+    ? "https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=" + encodeURIComponent(url)
+    : null;
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.48)",
+      display: "flex", alignItems: "flex-end", animation: "popIn .2s var(--ease)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", background: "var(--surface)",
+        borderRadius: "var(--r-xl) var(--r-xl) 0 0",
+        padding: "20px 20px calc(30px + env(safe-area-inset-bottom))" }}>
+        <div style={{ width: 40, height: 5, background: "var(--border)", borderRadius: 99, margin: "0 auto 18px" }} />
+        <div className="h2" style={{ marginBottom: 4 }}>Lernstand teilen</div>
+        <div className="dim" style={{ fontSize: 14, marginBottom: 18, lineHeight: 1.45 }}>
+          Scanne den QR-Code oder öffne den Link auf dem Eltern-Gerät. Der Link enthält eine Momentaufnahme.
+        </div>
+
+        {qrImgUrl && (
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+            <img src={qrImgUrl} width={180} height={180}
+              style={{ borderRadius: 14, border: "2px solid var(--border)", background: "#fff", display: "block" }}
+              alt="QR Code zum Scannen"
+              onError={e => { e.target.parentElement.style.display = "none"; }} />
+          </div>
+        )}
+
+        <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 14px", marginBottom: 14,
+          fontSize: 11.5, wordBreak: "break-all", color: "var(--text-dim)", lineHeight: 1.5, fontFamily: "monospace" }}>
+          {url ? url.slice(0, 90) + (url.length > 90 ? "…" : "") : "Fehler beim Generieren des Links."}
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          {canCopy && (
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={copy}>
+              <Icon name={copied ? "check" : "copy"} size={18} />{copied ? " Kopiert!" : " Kopieren"}
+            </button>
+          )}
+          {canShare ? (
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={share}>
+              <Icon name="share" size={18} /> Teilen
+            </button>
+          ) : !canCopy ? (
+            <div className="dim" style={{ fontSize: 13, lineHeight: 1.5 }}>Kopiere den Link manuell.</div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- ELTERN-DASHBOARD ---------------- */
+function ParentDashboard({ state, setState, go }) {
+  const [children, setChildren] = useS(() => listChildren());
+  const [lang, setLang] = useS(state.language || "en");
+  const [showShare, setShowShare] = useS(false);
+  const refresh = () => setChildren(listChildren());
+
+  const addChild = () => {
+    const name = window.prompt("Name des Kindes");
+    if (name === null) return;
+    try {
+      const next = addChildProfile(name, state.theme);
+      setState(next);
+      refresh();
+    } catch (e) {
+      window.alert(e.message || "Kind konnte nicht angelegt werden.");
+    }
+  };
+  const pickChild = (id) => {
+    setState(s => switchChild(s, id));
+    go("home");
+  };
+  const rename = (child) => {
+    const next = window.prompt("Name ändern", child.profile.name || "");
+    if (next === null || !next.trim()) return;
+    renameChild(child.id, next);
+    if (child.id === state.childId) setState(s => ({ ...s, name: next.trim() }));
+    refresh();
+  };
+
+  const summaries = children.map(child => childSummary(child, lang));
+  const totals = summaries.reduce((acc, s) => {
+    acc.sessions += s.progress.sessionsCount || 0;
+    acc.mastered += s.mastered;
+    return acc;
+  }, { sessions: 0, mastered: 0 });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {/* Custom header with two right-side buttons */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 18px 8px" }}>
+        <IconBtn name="back" onClick={() => go("home")} label="Zurück" />
+        <div className="display" style={{ flex: 1, textAlign: "center", fontSize: 17, fontWeight: 600 }}>Eltern</div>
+        <IconBtn name="qr" onClick={() => setShowShare(true)} label="Teilen" />
+        <IconBtn name="spark" onClick={addChild} label="Kind hinzufügen" />
+      </div>
+
+      <div className="scroll" style={{ padding: "8px 18px 28px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Language tabs */}
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", paddingBottom: 2 }}>
+          {LANGUAGES.map(l => (
+            <button key={l.id} onClick={() => setLang(l.id)} style={{ flex: "0 0 auto", padding: "8px 14px", borderRadius: 99, cursor: "pointer",
+              border: "1px solid var(--border)", fontWeight: 600, fontSize: 13.5, fontFamily: "var(--font-ui)",
+              background: lang === l.id ? "var(--accent)" : "var(--surface)", color: lang === l.id ? "#fff" : "var(--text-dim)" }}>
+              {l.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Summary stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <Stat big={children.length} label="Kinder" />
+          <Stat big={totals.sessions} label="Sessions" />
+          <Stat big={totals.mastered} label="Gemeistert" />
+        </div>
+
+        {/* Children comparison bar (only if >1 child) */}
+        {summaries.length > 1 && (
+          <div className="card" style={{ padding: 16 }}>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>Vergleich</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {summaries.map(s => (
+                <div key={s.child.id}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
+                    <span style={{ fontWeight: 700 }}>{s.child.profile.name || "Kind"}</span>
+                    <span className="dim">{s.progress.sessionsCount || 0} Sessions · {relativeDate(s.progress.lastSessionDate)}</span>
+                  </div>
+                  <ProgressBar value={s.mastered} total={s.totalWords || 1} accent="var(--correct)" label={s.pctMastered + "%"} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {summaries.length === 0 ? (
+          <div className="card" style={{ padding: 20, textAlign: "center" }}>
+            <div className="dim" style={{ fontSize: 15 }}>Noch kein Kinderprofil angelegt.</div>
+            <button className="btn btn-primary btn-block" style={{ marginTop: 14 }} onClick={addChild}>Kind hinzufügen</button>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 14 }}>
+            {summaries.map(s => {
+              const name = s.child.profile.name || "Kind";
+              const lastActive = relativeDate(s.progress.lastSessionDate);
+              return (
+                <div key={s.child.id} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 13 }}>
+                  {/* Header */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 14, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent)" }}>
+                      <Icon name="target" size={22} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18 }}>{name}</div>
+                      <div className="dim" style={{ fontSize: 12.5 }}>
+                        {languageLabel(lang)} · Zuletzt: <span style={{ fontWeight: 700, color: "var(--text)" }}>{lastActive}</span>
+                      </div>
+                    </div>
+                    {s.child.id === state.childId && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", background: "var(--primary-soft)", padding: "3px 8px", borderRadius: 99 }}>AKTIV</span>
+                    )}
+                  </div>
+
+                  {/* Key metrics */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                    <MiniMetric value={s.progress.sessionsCount || 0} label="Sessions" />
+                    <MiniMetric value={(s.progress.streak || 0) + " 🔥"} label="Streak" />
+                    <MiniMetric value={s.best + "%"} label="Bestwert" />
+                  </div>
+
+                  {/* Mastery bar */}
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 7 }}>
+                      <span className="dim">Lernstand</span>
+                      <span style={{ fontWeight: 700 }}>{s.mastered}/{s.totalWords} gemeistert</span>
+                    </div>
+                    <ProgressBar value={s.mastered} total={s.totalWords || 1} accent="var(--correct)" label={s.pctMastered + "%"} />
+                    <div className="dim" style={{ fontSize: 12, marginTop: 7 }}>
+                      Neu {s.levels[0]} · Geübt {s.levels[1]} · Sicher {s.levels[2]} · Stark {s.levels[3]} · Gemeistert {s.levels[4]}
+                    </div>
+                  </div>
+
+                  {/* Week chart */}
+                  <WeekChart history={s.progress.history} />
+
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btn-ghost" style={{ flex: 1, padding: "10px 12px", fontSize: 15 }} onClick={() => pickChild(s.child.id)}>Öffnen</button>
+                    <button className="btn btn-ghost" style={{ flex: 1, padding: "10px 12px", fontSize: 15 }} onClick={() => rename(s.child)}>Umbenennen</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showShare && <QRShareModal onClose={() => setShowShare(false)} />}
+    </div>
+  );
+}
+function MiniMetric({ value, label }) {
+  return (
+    <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+      <div className="display" style={{ fontSize: 20, fontWeight: 700 }}>{value}</div>
+      <div className="dim" style={{ fontSize: 11.5 }}>{label}</div>
+    </div>
+  );
+}
+
 /* ---------------- SETTINGS ---------------- */
 function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
   const [name, setName] = useS(state.name);
@@ -495,6 +750,22 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
             <input className="field" style={{ fontSize: 16, padding: "12px 16px" }} value={name} maxLength={16} onChange={e => setName(e.target.value)} onBlur={saveName} placeholder="Dein Name" />
           </div>
+        </Section>
+
+        <Section title="Kinder">
+          <Row label="Eltern-Dashboard" value="PIN" onClick={() => go("parent")} chevron />
+          <Row label="Kind hinzufügen" onClick={() => {
+            if (!requireParentPin("Kind hinzufügen")) return;
+            const childName = window.prompt("Name des Kindes");
+            if (childName === null) return;
+            try {
+              setState(addChildProfile(childName, state.theme));
+              setName(childName.trim());
+              setMsg("Kinderprofil angelegt.");
+            } catch (e) {
+              setMsg(e.message || "Kind konnte nicht angelegt werden.");
+            }
+          }} chevron />
         </Section>
 
         <Section title="Sprache">
@@ -582,4 +853,178 @@ function Toggle({ label, sub, on, onToggle }) {
   );
 }
 
-Object.assign(window, { Onboarding, ThemeSheet, Home, Result, Diagnose, Overview, Leaderboard, Settings });
+/* ---------------- ELTERN-ANSICHT (Read-only, via QR-Link) ---------------- */
+function ParentReadView({ data }) {
+  const [selIdx, setSelIdx] = useS(0);
+  const [lang, setLang] = useS("en");
+  const children = data.children || [];
+  const levelLabels = ["Neu", "Geübt", "Sicher", "Stark", "Gemeistert"];
+  const levelCols = ["var(--text-dim)", "var(--accent-2)", "var(--accent)", "var(--primary)", "var(--correct)"];
+
+  useE(() => { document.body.className = "theme-city"; }, []);
+
+  if (!children.length) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, padding: 24 }}>
+        <Voki mood="idle" size={100} />
+        <div className="h2">Keine Daten</div>
+        <div className="dim" style={{ fontSize: 15 }}>Dieser Link enthält keine Lerndaten.</div>
+      </div>
+    );
+  }
+
+  const child = children[Math.min(selIdx, children.length - 1)];
+  const prog = child.progress?.[lang] || {};
+  const levels = prog.levels || [0,0,0,0,0];
+  const totalWords = prog.totalWords || 0;
+  const mastered = levels[4] || 0;
+  const pctMastered = totalWords ? Math.round(mastered / totalWords * 100) : 0;
+  const history = (prog.history || []).map(h => ({ date: h.d, score: h.s, total: h.t, pct: h.p, mode: h.m ? "test" : "session" }));
+  const best = history.length ? Math.max(...history.map(h => h.pct || 0)) : 0;
+  const activeLangs = LANGUAGES.filter(l => child.progress?.[l.id]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div style={{ padding: "18px 18px 8px" }}>
+        <div className="eyebrow" style={{ marginBottom: 3 }}>
+          Eltern-Ansicht · {fmtDate(data.ts)}
+        </div>
+        <div className="h1">Lernstand</div>
+      </div>
+
+      {/* Child tabs */}
+      {children.length > 1 && (
+        <div style={{ display: "flex", gap: 8, padding: "4px 18px 6px", overflowX: "auto", scrollbarWidth: "none" }}>
+          {children.map((c, i) => (
+            <button key={c.id} onClick={() => setSelIdx(i)} style={{ flex: "0 0 auto", padding: "7px 14px", borderRadius: 99, cursor: "pointer",
+              border: "1px solid var(--border)", fontWeight: 600, fontSize: 13, fontFamily: "var(--font-ui)",
+              background: selIdx === i ? "var(--primary)" : "var(--surface)", color: selIdx === i ? "var(--primary-ink)" : "var(--text-dim)" }}>
+              {c.name || "Kind " + (i + 1)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Language tabs */}
+      {activeLangs.length > 1 && (
+        <div style={{ display: "flex", gap: 8, padding: "4px 18px 6px", overflowX: "auto", scrollbarWidth: "none" }}>
+          {activeLangs.map(l => (
+            <button key={l.id} onClick={() => setLang(l.id)} style={{ flex: "0 0 auto", padding: "7px 14px", borderRadius: 99, cursor: "pointer",
+              border: "1px solid var(--border)", fontWeight: 600, fontSize: 13, fontFamily: "var(--font-ui)",
+              background: lang === l.id ? "var(--accent)" : "var(--surface)", color: lang === l.id ? "#fff" : "var(--text-dim)" }}>
+              {l.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="scroll" style={{ padding: "8px 18px 36px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Stats row */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div className="card" style={{ padding: "14px 8px", textAlign: "center" }}>
+            <div className="display" style={{ fontSize: 24, fontWeight: 700 }}>{prog.sessions || 0}</div>
+            <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>Sessions</div>
+          </div>
+          <div className="card" style={{ padding: "14px 8px", textAlign: "center" }}>
+            <div className="display" style={{ fontSize: 24, fontWeight: 700 }}>{prog.streak || 0}</div>
+            <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>Tage Streak</div>
+          </div>
+          <div className="card" style={{ padding: "14px 8px", textAlign: "center" }}>
+            <div className="display" style={{ fontSize: 24, fontWeight: 700 }}>{best}%</div>
+            <div className="dim" style={{ fontSize: 11.5, marginTop: 2 }}>Bestwert</div>
+          </div>
+        </div>
+
+        {/* Last active */}
+        <div className="card" style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span className="dim" style={{ fontSize: 15 }}>Zuletzt gelernt</span>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>{relativeDate(prog.last)}</span>
+        </div>
+
+        {/* Mastery */}
+        <div className="card" style={{ padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 17 }}>Lernstand</div>
+            <div className="dim" style={{ fontSize: 13 }}>{totalWords} Wörter</div>
+          </div>
+          <div style={{ display: "flex", height: 12, borderRadius: 99, overflow: "hidden", background: "var(--surface-3)", marginBottom: 12 }}>
+            {levels.map((c, i) => c > 0 && (
+              <div key={i} style={{ width: (c / (totalWords || 1) * 100) + "%", background: levelCols[i], transition: "width .4s var(--ease)" }} />
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px 14px" }}>
+            {levelLabels.map((l, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 3, background: levelCols[i] }} />
+                <span className="dim">{l}</span>
+                <span style={{ marginLeft: "auto", fontWeight: 700, fontFamily: "var(--font-display)" }}>{levels[i]}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <ProgressBar value={mastered} total={totalWords || 1} accent="var(--correct)" label={pctMastered + "% gemeistert"} />
+          </div>
+        </div>
+
+        {/* Week chart */}
+        {history.length > 0 && (
+          <div className="card" style={{ padding: 16 }}>
+            <WeekChart history={history} />
+          </div>
+        )}
+
+        {/* Session history */}
+        {history.length > 0 && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 10, marginLeft: 2 }}>Letzte Sessions</div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {history.slice(0, 5).map((h, i) => (
+                <div key={i} className="card" style={{ padding: "12px 15px", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>
+                      {h.score}/{h.total} richtig
+                      {h.mode === "test" && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-2)", marginLeft: 6 }}>TEST</span>}
+                    </div>
+                    <div className="dim" style={{ fontSize: 12.5 }}>{fmtDate(h.date)}</div>
+                  </div>
+                  <div className="display" style={{ fontSize: 20, fontWeight: 700, color: (h.pct || 0) >= 60 ? "var(--correct)" : "var(--wrong)" }}>{h.pct}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Multi-child comparison */}
+        {children.length > 1 && (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 10, marginLeft: 2 }}>Vergleich</div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {children.map((c, i) => {
+                const cp = c.progress?.[lang] || {};
+                const cLevels = cp.levels || [0,0,0,0,0];
+                const cTotal = cp.totalWords || 0;
+                const cMastered = cLevels[4] || 0;
+                const cPct = cTotal ? Math.round(cMastered / cTotal * 100) : 0;
+                return (
+                  <div key={c.id} className="card" style={{ padding: "13px 15px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, alignItems: "center" }}>
+                      <span style={{ fontWeight: 700, fontFamily: "var(--font-display)", fontSize: 16 }}>{c.name || "Kind " + (i + 1)}</span>
+                      <span className="dim" style={{ fontSize: 12.5 }}>{cp.sessions || 0} Sessions · {relativeDate(cp.last)}</span>
+                    </div>
+                    <ProgressBar value={cMastered} total={cTotal || 1} accent="var(--correct)" label={cPct + "%"} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="dim" style={{ textAlign: "center", fontSize: 12, marginTop: 8 }}>
+          Momentaufnahme vom {fmtDate(data.ts)} · Vokabeltrainer
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { Onboarding, ThemeSheet, Home, Result, Diagnose, Overview, Leaderboard, ParentDashboard, ParentReadView, Settings });
