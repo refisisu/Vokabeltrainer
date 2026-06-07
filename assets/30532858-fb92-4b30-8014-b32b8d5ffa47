@@ -697,7 +697,7 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
   const importCsv = (file) => readFile(file, (text) => {
     try {
       const count = importVocabularyCsv(state.language, text);
-      setMsg(count + " Vokabeln für " + languageLabel(state.language) + " importiert.");
+      setMsg(count + " neue Vokabeln für " + languageLabel(state.language) + " hinzugefügt.");
       setState(s => ({ ...s }));
     } catch (e) {
       setMsg(e.message || "CSV konnte nicht gelesen werden.");

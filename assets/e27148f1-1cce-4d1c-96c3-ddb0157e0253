@@ -389,11 +389,18 @@ function parseCsv(text) {
 }
 function importVocabularyCsv(lang, text) {
   const active = normalizeLang(lang);
-  const rows = parseCsv(text);
-  if (!rows.length) throw new Error("Keine gültigen Vokabeln gefunden.");
-  localStorage.setItem(VOCAB_KEY(active), JSON.stringify(rows));
+  const newRows = parseCsv(text);
+  if (!newRows.length) throw new Error("Keine gültigen Vokabeln gefunden.");
+  const existingRaw = localStorage.getItem(VOCAB_KEY(active));
+  const existing = existingRaw ? JSON.parse(existingRaw) : [];
+  const existingKeys = new Set(existing.map(w => normalize(w.en)));
+  const unique = newRows.filter(w => !existingKeys.has(normalize(w.en)));
+  if (!unique.length) throw new Error("Alle " + newRows.length + " Vokabeln sind bereits vorhanden.");
+  const offset = existing.length;
+  const merged = [...existing, ...unique.map((w, i) => ({ ...w, id: "csv-" + (offset + i) }))];
+  localStorage.setItem(VOCAB_KEY(active), JSON.stringify(merged));
   if (active === ACTIVE_LANGUAGE) refreshVocabulary(active);
-  return rows.length;
+  return unique.length;
 }
 function exportBackup() {
   return {
