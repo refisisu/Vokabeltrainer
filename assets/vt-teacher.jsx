@@ -594,9 +594,185 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
   );
 }
 
+/* ── Lehrer-Übersicht: Nutzungsstatistik ── */
+function TeacherStatsView({ session }) {
+  const [classes, setClasses] = useT(null);
+  const [students, setStudents] = useT(null);
+  const [filterClass, setFilterClass] = useT("all");
+  const [error, setError] = useT(null);
+
+  useTE(() => {
+    window._sb
+      .from("voc_classes")
+      .select("id, name")
+      .eq("teacher_id", session.user.id)
+      .order("created_at", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) setError(error.message);
+        else setClasses(data || []);
+      });
+  }, [session.user.id]);
+
+  useTE(() => {
+    if (classes === null) return;
+    setStudents(null);
+    setError(null);
+    const classIds = filterClass === "all" ? classes.map(c => c.id) : [filterClass];
+    if (!classIds.length) { setStudents([]); return; }
+
+    (async () => {
+      const { data: members, error: mErr } = await window._sb
+        .from("voc_class_members")
+        .select("user_id, voc_users(display_name)")
+        .in("class_id", classIds);
+      if (mErr) { setError(mErr.message); return; }
+
+      const studentIds = [...new Set((members || []).map(m => m.user_id))];
+      if (!studentIds.length) { setStudents([]); return; }
+
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: sessions, error: sErr } = await window._sb
+        .from("voc_sessions")
+        .select("user_id, score, total, xp, completed_at")
+        .in("user_id", studentIds)
+        .gte("completed_at", since);
+      if (sErr) {
+        setError("Tabelle voc_sessions fehlt – SQL im Supabase-Dashboard ausführen!");
+        setStudents([]);
+        return;
+      }
+
+      const map = new Map();
+      studentIds.forEach(id => {
+        const m = (members || []).find(x => x.user_id === id);
+        map.set(id, { userId: id, name: m?.voc_users?.display_name || "—",
+          sessions: 0, xp: 0, correct: 0, total: 0, lastActive: null });
+      });
+      (sessions || []).forEach(s => {
+        const st = map.get(s.user_id);
+        if (!st) return;
+        st.sessions++;
+        st.xp += s.xp || 0;
+        st.correct += s.score || 0;
+        st.total += s.total || 0;
+        if (!st.lastActive || s.completed_at > st.lastActive) st.lastActive = s.completed_at;
+      });
+
+      setStudents([...map.values()].sort((a, b) => b.xp - a.xp || b.sessions - a.sessions));
+    })();
+  }, [classes, filterClass]);
+
+  const top10 = (students || []).filter(s => s.sessions > 0).slice(0, 10);
+  const inactive = (students || []).filter(s => s.sessions === 0).length;
+  const totalSessions = (students || []).reduce((n, s) => n + s.sessions, 0);
+  const activeLearners = (students || []).filter(s => s.sessions > 0).length;
+
+  return (
+    <div className="scroll" style={{ padding: "0 18px 32px" }}>
+      {/* Klassen-Filter */}
+      {classes && classes.length > 0 && (
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", padding: "14px 0 12px" }}>
+          {[{ id: "all", name: "Alle" }, ...classes].map(c => (
+            <button key={c.id} onClick={() => setFilterClass(c.id)}
+              style={{ flex: "0 0 auto", padding: "6px 14px", borderRadius: 99, cursor: "pointer",
+                border: "1px solid var(--border)", fontWeight: 600, fontSize: 13, fontFamily: "var(--font-ui)",
+                background: filterClass === c.id ? "var(--accent)" : "var(--surface)",
+                color: filterClass === c.id ? "#fff" : "var(--text-dim)" }}>
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <div style={{ padding: "12px 14px", background: "var(--wrong-soft)", color: "var(--wrong)",
+          borderRadius: "var(--r-md)", fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+          {error}
+        </div>
+      )}
+
+      {students !== null && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+            {[
+              [(students || []).length, "Schüler"],
+              [totalSessions, "Sessions"],
+              [activeLearners, "Aktiv (30 T.)"],
+            ].map(([val, label]) => (
+              <div key={label} className="card" style={{ padding: "14px 8px", textAlign: "center" }}>
+                <div className="display" style={{ fontSize: 24, fontWeight: 700 }}>{val}</div>
+                <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {top10.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "36px 20px", display: "flex",
+              flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <div style={{ fontSize: 38 }}>📊</div>
+              <div className="h2">Noch keine Aktivität</div>
+              <div className="dim" style={{ fontSize: 14, lineHeight: 1.5, maxWidth: 260 }}>
+                Sobald Schüler Vokabeln üben, erscheinen hier ihre Ergebnisse.
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="eyebrow" style={{ marginBottom: 10, marginLeft: 2 }}>Top Schüler – letzte 30 Tage</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {top10.map((st, i) => {
+                  const acc = st.total > 0 ? Math.round(st.correct / st.total * 100) : null;
+                  return (
+                    <div key={st.userId} className="card"
+                      style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 9, flexShrink: 0,
+                        background: i < 3 ? "var(--primary-soft)" : "var(--surface-2)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 14,
+                        color: i < 3 ? "var(--accent)" : "var(--text-dim)" }}>
+                        {i + 1}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden",
+                          textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {st.name}
+                        </div>
+                        <div className="dim" style={{ fontSize: 12.5, marginTop: 1 }}>
+                          {st.sessions} Session{st.sessions !== 1 ? "s" : ""}
+                          {acc !== null ? ` · ${acc}% richtig` : ""}
+                          {st.lastActive ? ` · ${relativeDate(st.lastActive.slice(0, 10))}` : ""}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0,
+                        fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15,
+                        color: "var(--accent)" }}>
+                        <Icon name="bolt" size={15} />{st.xp}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {inactive > 0 && (
+                <div className="dim" style={{ fontSize: 13, textAlign: "center", marginTop: 14 }}>
+                  {inactive} Schüler noch nicht aktiv
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {students === null && !error && (
+        <div style={{ textAlign: "center", padding: 40 }}>
+          <div className="dim" style={{ fontSize: 15 }}>Laden …</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── TeacherDashboard: Haupt-Router ── */
 function TeacherDashboard({ session, go }) {
-  const [mainTab, setMainTab] = useT("classes");
+  const [mainTab, setMainTab] = useT("stats");
   const [view, setView] = useT("main");
   const [selectedClass, setSelectedClass] = useT(null);
   const [selectedList, setSelectedList] = useT(null);
@@ -632,10 +808,10 @@ function TeacherDashboard({ session, go }) {
       {/* Top-Level Tab Bar */}
       <div style={{ padding: "16px 18px 0", flexShrink: 0 }}>
         <div style={{ display: "flex", background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: 3 }}>
-          {[["classes", "🏫  Klassen"], ["lists", "📚  Listen"]].map(([t, label]) => (
+          {[["stats", "📊"], ["classes", "🏫"], ["lists", "📚"]].map(([t, label]) => (
             <button key={t} onClick={() => setMainTab(t)}
               style={{ flex: 1, padding: "9px 0", border: "none", borderRadius: "calc(var(--r-md) - 3px)",
-                fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 14, cursor: "pointer",
+                fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 18, cursor: "pointer",
                 background: mainTab === t ? "var(--surface)" : "transparent",
                 color: mainTab === t ? "var(--text)" : "var(--text-dim)",
                 boxShadow: mainTab === t ? "0 1px 4px var(--shadow)" : "none",
@@ -646,7 +822,9 @@ function TeacherDashboard({ session, go }) {
         </div>
       </div>
 
-      {mainTab === "classes" ? (
+      {mainTab === "stats" ? (
+        <TeacherStatsView session={session} />
+      ) : mainTab === "classes" ? (
         <ClassListView session={session}
           onSelectClass={(cls) => { setSelectedClass(cls); setView("class"); }}
           onNewClass={() => setView("new-class")} />

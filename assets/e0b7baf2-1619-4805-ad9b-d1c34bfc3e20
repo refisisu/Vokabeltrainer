@@ -99,6 +99,17 @@ function App() {
     });
     setLastResult(result);
     setScreen(mode === "test" ? "diagnose" : "result");
+    // Persist session to Supabase for teacher stats (fire-and-forget, regular sessions only)
+    if (!SKIP_AUTH && session && vocUser && mode !== "test") {
+      const listId = (() => { try { return JSON.parse(localStorage.getItem("vt_active_list"))?.id || null; } catch(e) { return null; } })();
+      window._sb.from("voc_sessions").insert({
+        user_id: session.user.id,
+        list_id: listId,
+        score: result.score,
+        total: result.total,
+        xp: result.xp,
+      }).then(() => {});
+    }
   };
 
   const onboardDone = ({ name, theme, language }) => {
@@ -123,7 +134,9 @@ function App() {
   let view = null;
   if (screen === "onboarding") view = <Onboarding onDone={onboardDone} />;
   else if (screen === "home") {
-    if (!SKIP_AUTH && vocUser?.role === "student" && TOTAL_WORDS === 0) {
+    if (!SKIP_AUTH && vocUser?.role === "teacher") {
+      view = <TeacherDashboard session={session} go={go} />;
+    } else if (!SKIP_AUTH && vocUser?.role === "student" && TOTAL_WORDS === 0) {
       view = <StudentListPicker session={session} go={go} />;
     } else {
       view = <Home state={state} go={go} onOpenTheme={() => setThemeSheet(true)} vocUser={vocUser} />;
