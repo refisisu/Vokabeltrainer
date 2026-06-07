@@ -122,7 +122,14 @@ function App() {
 
   let view = null;
   if (screen === "onboarding") view = <Onboarding onDone={onboardDone} />;
-  else if (screen === "home") view = <Home state={state} go={go} onOpenTheme={() => setThemeSheet(true)} vocUser={vocUser} />;
+  else if (screen === "home") {
+    if (!SKIP_AUTH && vocUser?.role === "student" && TOTAL_WORDS === 0) {
+      view = <StudentListPicker session={session} go={go} />;
+    } else {
+      view = <Home state={state} go={go} onOpenTheme={() => setThemeSheet(true)} vocUser={vocUser} />;
+    }
+  }
+  else if (screen === "student-lists") view = <StudentListPicker session={session} go={go} />;
   else if (screen === "teacher") view = <TeacherDashboard session={session} go={go} />;
   else if (screen === "quiz") view = <Quiz queue={queue} mode={mode} tweaks={tweaks} onFinish={onFinish} onExit={() => go("home")} />;
   else if (screen === "result") view = <Result result={lastResult} mode={mode} state={state} go={go} tweaks={tweaks} />;

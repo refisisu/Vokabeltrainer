@@ -167,13 +167,16 @@ function MasteryOverview({ state }) {
 function Home({ state, go, onOpenTheme, vocUser }) {
   const hasWords = TOTAL_WORDS > 0;
   const dueCount = hasWords ? Math.min(15, dueWords(state).length || TOTAL_WORDS) : 0;
+  const activeListName = vocUser?.role === "student"
+    ? (() => { try { return JSON.parse(localStorage.getItem("vt_active_list"))?.name || null; } catch (e) { return null; } })()
+    : null;
   return (
     <div className="scroll vt-home" style={{ padding: "6px 18px 30px" }}>
       <div className="vt-home-header" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 2px 18px" }}>
         <div style={{ flex: 1 }}>
           <div className="dim" style={{ fontSize: 14 }}>{greeting()}{state.name ? "," : "!"}</div>
           {state.name && <div className="h2" style={{ fontSize: 24 }}>{state.name}</div>}
-          <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>{languageLabel(state.language)}</div>
+          <div className="dim" style={{ fontSize: 12, marginTop: 2 }}>{activeListName || languageLabel(state.language)}</div>
         </div>
         <button onClick={onOpenTheme} aria-label="Theme" style={{ width: 44, height: 44, borderRadius: 14, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
           <span style={{ width: 13, height: 13, borderRadius: 4, background: "var(--primary)" }} />
@@ -206,6 +209,9 @@ function Home({ state, go, onOpenTheme, vocUser }) {
         <TileBtn icon="list" title="Wortschatz" sub="Alle Vokabeln" onClick={() => go("overview")} />
         <TileBtn icon="trophy" title="Bestenliste" sub="Letzte Sessions" onClick={() => go("leaderboard")} />
         <TileBtn icon="target" title="Eltern" sub="Lernstand ansehen" onClick={() => go("parent")} />
+        {vocUser?.role === "student" && (
+          <TileBtn icon="list" title="Meine Listen" sub={activeListName || "Liste wechseln"} onClick={() => go("student-lists")} />
+        )}
         {vocUser?.role === "teacher" && (
           <TileBtn icon="list" title="Klassen" sub="Listen & Einladungen" onClick={() => go("teacher")} />
         )}
