@@ -1,5 +1,5 @@
 // vt-app.jsx — root: state machine, routing, theme, tweaks.
-const { useState: useA, useEffect: useAE } = React;
+const { useState: useA, useEffect: useAE, useRef: useARef } = React;
 
 const ACTIVE_TYPES = ["mc", "type", "cloze", "match"];
 
@@ -12,11 +12,52 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 function clone(s) { return JSON.parse(JSON.stringify(s)); }
 
+/* ── Offline-Session-Queue ── */
+function queueSessionOffline(data) {
+  try {
+    const pending = JSON.parse(localStorage.getItem("vt_pending_sessions") || "[]");
+    pending.push({ ...data, queued_at: new Date().toISOString() });
+    localStorage.setItem("vt_pending_sessions", JSON.stringify(pending));
+  } catch (e) {}
+}
+
+async function flushPendingSessions(userId) {
+  try {
+    const raw = localStorage.getItem("vt_pending_sessions");
+    if (!raw) return;
+    const pending = JSON.parse(raw);
+    if (!pending.length) return;
+    localStorage.removeItem("vt_pending_sessions");
+    for (const s of pending) {
+      const { queued_at, ...data } = s;
+      await window._sb.from("voc_sessions").insert({ user_id: userId, ...data });
+    }
+  } catch (e) {}
+}
+
 function App() {
   const [session, setSession] = useA(null);
   const [vocUser, setVocUser] = useA(null);
   const [authLoading, setAuthLoading] = useA(true);
+  const [inClass, setInClass] = useA(false);
   const [joinMsg, setJoinMsg] = useA(null);
+  const [isOnline, setIsOnline] = useA(navigator.onLine);
+
+  // Online/Offline-Erkennung + Flush der Queue wenn wieder online
+  useAE(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+
+  useAE(() => {
+    if (isOnline && session) flushPendingSessions(session.user.id);
+  }, [isOnline, session]);
 
   // Auth: session bootstrap + listener
   useAE(() => {
@@ -33,10 +74,12 @@ function App() {
         if (code) {
           sessionStorage.removeItem("vt_join");
           const { className, error } = await joinClass(code, session.user.id);
+          if (!error) setInClass(true);
           setJoinMsg(error ? "Klasse nicht gefunden." : `Du bist jetzt in: ${className} 🎉`);
         }
       } else {
         setVocUser(null);
+        setInClass(false);
         setAuthLoading(false);
       }
     });
@@ -44,8 +87,12 @@ function App() {
   }, []);
 
   async function loadVocUser(userId) {
-    const { data } = await window._sb.from("voc_users").select("*").eq("id", userId).maybeSingle();
-    setVocUser(data || null);
+    const [{ data: user }, { data: membership }] = await Promise.all([
+      window._sb.from("voc_users").select("*").eq("id", userId).maybeSingle(),
+      window._sb.from("voc_class_members").select("id").eq("user_id", userId).limit(1).maybeSingle(),
+    ]);
+    setVocUser(user || null);
+    setInClass(!!membership);
     setAuthLoading(false);
   }
 
@@ -61,10 +108,8 @@ function App() {
 
   useStarfield();
 
-  // expose active Farbwelt synchronously so the mascot can switch per world
   window.__vtTheme = state.onboarded ? state.theme : "city";
 
-  // persist + theme
   useAE(() => { saveState(state); }, [state]);
   useAE(() => { if (state.onboarded) document.body.className = "theme-" + state.theme; }, [state.theme, state.onboarded]);
 
@@ -99,16 +144,20 @@ function App() {
     });
     setLastResult(result);
     setScreen(mode === "test" ? "diagnose" : "result");
-    // Persist session to Supabase for teacher stats (fire-and-forget, regular sessions only)
-    if (!SKIP_AUTH && session && vocUser && mode !== "test") {
+
+    // Nur speichern wenn: eingeloggt, normaler Modus, Schüler in einer Klasse (oder Lehrer)
+    const shouldPersist = !SKIP_AUTH && session && vocUser && mode !== "test"
+      && (vocUser.role === "teacher" || inClass);
+
+    if (shouldPersist) {
       const listId = (() => { try { return JSON.parse(localStorage.getItem("vt_active_list"))?.id || null; } catch(e) { return null; } })();
-      window._sb.from("voc_sessions").insert({
-        user_id: session.user.id,
-        list_id: listId,
-        score: result.score,
-        total: result.total,
-        xp: result.xp,
-      }).then(() => {});
+      const sessionData = { list_id: listId, score: result.score, total: result.total, xp: result.xp };
+
+      if (!navigator.onLine) {
+        queueSessionOffline(sessionData);
+      } else {
+        window._sb.from("voc_sessions").insert({ user_id: session.user.id, ...sessionData }).then(() => {});
+      }
     }
   };
 
@@ -128,7 +177,7 @@ function App() {
       </div>
     );
     if (!session) return <AuthScreen joinCode={joinCode} />;
-    if (!vocUser) return <VocSetup session={session} onDone={setVocUser} />;
+    if (!vocUser) return <VocSetup session={session} onDone={(u) => { setVocUser(u); }} />;
   }
 
   let view = null;
@@ -137,12 +186,12 @@ function App() {
     if (!SKIP_AUTH && vocUser?.role === "teacher") {
       view = <TeacherDashboard session={session} go={go} />;
     } else if (!SKIP_AUTH && vocUser?.role === "student" && TOTAL_WORDS === 0) {
-      view = <StudentListPicker session={session} go={go} />;
+      view = <StudentListPicker session={session} go={go} inClass={inClass} />;
     } else {
       view = <Home state={state} go={go} onOpenTheme={() => setThemeSheet(true)} vocUser={vocUser} />;
     }
   }
-  else if (screen === "student-lists") view = <StudentListPicker session={session} go={go} />;
+  else if (screen === "student-lists") view = <StudentListPicker session={session} go={go} inClass={inClass} />;
   else if (screen === "teacher") view = <TeacherDashboard session={session} go={go} />;
   else if (screen === "quiz") view = <Quiz queue={queue} mode={mode} tweaks={tweaks} onFinish={onFinish} onExit={() => go("home")} />;
   else if (screen === "result") view = <Result result={lastResult} mode={mode} state={state} go={go} tweaks={tweaks} />;
@@ -154,9 +203,17 @@ function App() {
 
   return (
     <React.Fragment>
+      {/* Offline-Banner */}
+      {!isOnline && (
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 60,
+          background: "var(--surface-2)", color: "var(--text-dim)", fontSize: 13, fontWeight: 600,
+          textAlign: "center", padding: "6px 16px", borderBottom: "1px solid var(--border)" }}>
+          Offline – Lernfortschritte werden gespeichert und später synchronisiert
+        </div>
+      )}
       {joinMsg && (
         <div onClick={() => setJoinMsg(null)}
-          style={{ position: "absolute", top: 16, left: 16, right: 16, zIndex: 50,
+          style={{ position: "absolute", top: isOnline ? 16 : 42, left: 16, right: 16, zIndex: 50,
             background: "var(--correct-soft)", color: "var(--correct)", borderRadius: "var(--r-md)",
             padding: "12px 16px", fontSize: 15, fontWeight: 600, textAlign: "center", cursor: "pointer" }}>
           {joinMsg}

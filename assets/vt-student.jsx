@@ -2,7 +2,7 @@
 
 const { useState: useSt, useEffect: useStE } = React;
 
-function StudentListPicker({ session, go }) {
+function StudentListPicker({ session, go, inClass }) {
   const [lists, setLists] = useSt(null);
   const [busy, setBusy] = useSt(null);
   const [err, setErr] = useSt(null);
@@ -68,6 +68,8 @@ function StudentListPicker({ session, go }) {
     go("home");
   };
 
+  const handleLogout = () => window._sb.auth.signOut();
+
   if (!lists && !err) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -76,13 +78,22 @@ function StudentListPicker({ session, go }) {
     );
   }
 
+  const hasLists = lists && lists.length > 0;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div style={{ padding: "20px 18px 14px", flexShrink: 0 }}>
-        <div className="h1">Meine Vokabeln</div>
-        <div className="dim" style={{ fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>
-          Wähle eine Liste aus deiner Klasse zum Üben.
+      {/* Header mit Logout */}
+      <div style={{ padding: "20px 18px 14px", flexShrink: 0, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <div className="h1">Meine Vokabeln</div>
+          <div className="dim" style={{ fontSize: 14, marginTop: 4, lineHeight: 1.5 }}>
+            {hasLists ? "Wähle eine Liste aus deiner Klasse zum Üben." : "Noch keine Liste von deiner Lehrperson."}
+          </div>
         </div>
+        <button className="btn btn-ghost" style={{ padding: "8px 14px", fontSize: 14, flexShrink: 0, marginLeft: 10 }}
+          onClick={handleLogout}>
+          Abmelden
+        </button>
       </div>
 
       <div className="scroll" style={{ padding: "0 18px 32px" }}>
@@ -93,22 +104,22 @@ function StudentListPicker({ session, go }) {
           </div>
         )}
 
-        {lists?.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "60px 20px", display: "flex",
-            flexDirection: "column", alignItems: "center", gap: 16 }}>
-            <Voki mood="idle" size={100} />
-            <div className="h2">Noch keine Liste</div>
-            <div className="dim" style={{ fontSize: 14, lineHeight: 1.55, maxWidth: 280 }}>
-              Dein Lehrer hat dir noch keine Vokabelliste zugewiesen.
-              Tritt einer Klasse bei oder warte auf deinen Lehrer.
+        {/* Kein-Klasse-Banner wenn nicht in einer Klasse */}
+        {!inClass && (
+          <div style={{ padding: "14px 16px", background: "var(--surface-2)",
+            borderRadius: "var(--r-md)", marginBottom: 16, display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>ℹ️</span>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Du bist noch in keiner Klasse</div>
+              <div className="dim" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                Deine Lernfortschritte werden lokal gespeichert, aber nicht in die Schulrangliste eingetragen.
+                Sobald deine Lehrperson dich hinzufügt, werden deine Daten mit der Klasse verknüpft.
+              </div>
             </div>
-            {TOTAL_WORDS > 0 && (
-              <button className="btn btn-ghost" style={{ marginTop: 4 }} onClick={() => go("home")}>
-                Eigene Liste nutzen
-              </button>
-            )}
           </div>
-        ) : (
+        )}
+
+        {hasLists ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {lists.map(list => (
               <button key={list.id} className="card"
@@ -134,7 +145,30 @@ function StudentListPicker({ session, go }) {
               </button>
             ))}
           </div>
+        ) : (
+          <div style={{ textAlign: "center", padding: "40px 20px", display: "flex",
+            flexDirection: "column", alignItems: "center", gap: 16 }}>
+            <Voki mood="idle" size={100} />
+            <div className="h2">Noch keine Liste</div>
+            <div className="dim" style={{ fontSize: 14, lineHeight: 1.55, maxWidth: 280 }}>
+              Deine Lehrperson hat dir noch keine Vokabelliste zugewiesen.
+            </div>
+          </div>
         )}
+
+        {/* Immer sichtbar: Lokal üben */}
+        <div style={{ marginTop: hasLists ? 20 : 0, padding: "14px 16px", background: "var(--surface)",
+          border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Lokal üben</div>
+          <div className="dim" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>
+            Du kannst eigene Vokabeln hochladen und lokal üben – unabhängig von deiner Klasse.
+            {!inClass && " Diese Fortschritte werden nicht in die Rangliste eingetragen."}
+          </div>
+          <button className="btn btn-ghost" style={{ width: "100%", fontSize: 15 }}
+            onClick={() => go("home")}>
+            Eigene Vokabeln nutzen
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -31,7 +31,6 @@ function parseCsvLine(line) {
 function parseWords(raw) {
   const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
   if (!lines.length) return [];
-  // Header-Zeile überspringen
   const first = lines[0].toLowerCase();
   const start = (first.startsWith("fremdwort") || first.startsWith("word") || first.startsWith("original")) ? 1 : 0;
   return lines.slice(start).map(line => {
@@ -39,7 +38,6 @@ function parseWords(raw) {
     if (f.length >= 2) {
       return { original: f[0], translation: f[1], beispiel: f[2] || "", hinweis: f[3] || "", aussprache: f[4] || "" };
     }
-    // Fallback für einfaches Format (Hund - chien)
     const sep = line.includes(" - ") ? " - " : ",";
     const [original, ...rest] = line.split(sep);
     return { original: original?.trim(), translation: rest.join(sep).trim(), beispiel: "", hinweis: "", aussprache: "" };
@@ -181,6 +179,15 @@ function ListLibraryView({ session, onNewList, onEditList }) {
 
   useTE(() => { load(); }, []);
 
+  const deleteList = async (list, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Liste "${list.name}" und alle Wörter löschen?`)) return;
+    await window._sb.from("voc_words").delete().eq("list_id", list.id);
+    await window._sb.from("voc_class_lists").delete().eq("list_id", list.id);
+    await window._sb.from("voc_lists").delete().eq("id", list.id);
+    load();
+  };
+
   return (
     <div className="scroll" style={{ padding: "0 18px 32px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 2px 18px" }}>
@@ -197,17 +204,24 @@ function ListLibraryView({ session, onNewList, onEditList }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {lists.map(list => (
-            <button key={list.id} className="card" onClick={() => onEditList(list)}
-              style={{ padding: "14px 16px", textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, width: "100%" }}>
-              <span style={{ fontSize: 24 }}>📋</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 16 }}>{list.name}</div>
-                <div className="dim" style={{ fontSize: 13 }}>
-                  {list.voc_words?.[0]?.count ?? 0} Wörter
+            <div key={list.id} className="card"
+              style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+              <button onClick={() => onEditList(list)}
+                style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}>
+                <span style={{ fontSize: 24 }}>📋</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 16 }}>{list.name}</div>
+                  <div className="dim" style={{ fontSize: 13 }}>
+                    {list.voc_words?.[0]?.count ?? 0} Wörter
+                  </div>
                 </div>
-              </div>
-              <Icon name="arrowR" size={18} style={{ color: "var(--text-dim)" }} />
-            </button>
+              </button>
+              <button className="btn btn-ghost"
+                style={{ padding: "6px 10px", fontSize: 13, color: "var(--wrong)", flexShrink: 0 }}
+                onClick={(e) => deleteList(list, e)}>
+                Löschen
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -252,11 +266,9 @@ function AssignListModal({ cls, session, onClose, onAssigned }) {
         width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column",
         paddingBottom: "env(safe-area-inset-bottom, 16px)",
       }}>
-        {/* Drag Handle */}
         <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)" }} />
         </div>
-
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px 12px" }}>
           <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18 }}>
             Liste zuweisen — {cls.name}
@@ -265,7 +277,6 @@ function AssignListModal({ cls, session, onClose, onAssigned }) {
             Schließen
           </button>
         </div>
-
         <div className="scroll" style={{ padding: "0 18px 16px" }}>
           {lists === null ? <Spinner /> : lists.length === 0 ? (
             <EmptyState icon="📭" title="Alle Listen zugewiesen"
@@ -303,6 +314,208 @@ function AssignListModal({ cls, session, onClose, onAssigned }) {
   );
 }
 
+/* ── Schüler zur Klasse hinzufügen (Bottom Sheet) ── */
+function AddStudentModal({ cls, onClose, onAdded }) {
+  const [search, setSearch] = useT("");
+  const [users, setUsers] = useT([]);
+  const [loading, setLoading] = useT(false);
+  const [adding, setAdding] = useT(null);
+  const [error, setError] = useT(null);
+
+  const handleSearch = async () => {
+    if (!search.trim()) return;
+    setLoading(true); setError(null);
+    const { data: members } = await window._sb
+      .from("voc_class_members")
+      .select("user_id")
+      .eq("class_id", cls.id);
+    const memberIds = (members || []).map(m => m.user_id);
+
+    let query = window._sb
+      .from("voc_users")
+      .select("id, display_name, role")
+      .eq("role", "student")
+      .ilike("display_name", `%${search.trim()}%`)
+      .limit(20);
+
+    const { data, error } = await query;
+    setLoading(false);
+    if (error) { setError(error.message); return; }
+    const notInClass = (data || []).filter(u => !memberIds.includes(u.id));
+    setUsers(notInClass);
+  };
+
+  const addStudent = async (userId) => {
+    setAdding(userId); setError(null);
+    const { error } = await window._sb
+      .from("voc_class_members")
+      .insert({ class_id: cls.id, user_id: userId });
+    setAdding(null);
+    if (error && error.code !== "23505") { setError(error.message); return; }
+    onAdded();
+    setUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 100,
+      background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "flex-end",
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: "var(--surface)", borderRadius: "var(--r-lg) var(--r-lg) 0 0",
+        width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column",
+        paddingBottom: "env(safe-area-inset-bottom, 16px)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)" }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px 12px" }}>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18 }}>
+            Schüler hinzufügen
+          </div>
+          <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 14 }} onClick={onClose}>
+            Schließen
+          </button>
+        </div>
+        <div className="scroll" style={{ padding: "0 18px 16px" }}>
+          <div className="dim" style={{ fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
+            Nach Namen suchen – nur Schüler, die noch nicht in dieser Klasse sind.
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <input className="field" type="text" placeholder="Name suchen …"
+              value={search} onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSearch()}
+              style={{ flex: 1 }} />
+            <button className="btn btn-primary" style={{ padding: "0 18px", fontSize: 15 }}
+              disabled={loading || !search.trim()} onClick={handleSearch}>
+              {loading ? "…" : "Suchen"}
+            </button>
+          </div>
+          {error && (
+            <div style={{ padding: "10px 14px", background: "var(--wrong-soft)", color: "var(--wrong)",
+              borderRadius: "var(--r-md)", fontSize: 14, marginBottom: 10 }}>
+              {error}
+            </div>
+          )}
+          {users.length === 0 && !loading && search && (
+            <div className="dim" style={{ textAlign: "center", padding: "20px 0", fontSize: 14 }}>
+              Keine Schüler gefunden.
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {users.map(u => (
+              <div key={u.id} className="card"
+                style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 22 }}>🎒</span>
+                <div style={{ flex: 1, fontWeight: 500, fontSize: 15 }}>{u.display_name}</div>
+                <button className="btn btn-primary" style={{ padding: "8px 16px", fontSize: 14 }}
+                  disabled={!!adding} onClick={() => addStudent(u.id)}>
+                  {adding === u.id ? "…" : "Hinzufügen"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Bulk-Einladung per E-Mail (Bottom Sheet) ── */
+function BulkInviteModal({ cls, onClose }) {
+  const [emails, setEmails] = useT("");
+  const [sending, setSending] = useT(false);
+  const [results, setResults] = useT(null);
+
+  const handleSend = async () => {
+    const emailList = emails
+      .split(/[\n,;]+/)
+      .map(e => e.trim().toLowerCase())
+      .filter(e => e.includes("@") && e.includes("."));
+    if (!emailList.length) return;
+    setSending(true);
+    const redirectUrl = `${window.location.origin}${window.location.pathname}?join=${cls.join_code}`;
+    const out = [];
+    for (const email of emailList) {
+      const { error } = await window._sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectUrl },
+      });
+      out.push({ email, ok: !error, msg: error?.message });
+      await new Promise(r => setTimeout(r, 250)); // Rate-Limit vermeiden
+    }
+    setResults(out);
+    setSending(false);
+  };
+
+  const emailCount = emails
+    .split(/[\n,;]+/)
+    .map(e => e.trim())
+    .filter(e => e.includes("@") && e.includes(".")).length;
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 100,
+      background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "flex-end",
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: "var(--surface)", borderRadius: "var(--r-lg) var(--r-lg) 0 0",
+        width: "100%", maxHeight: "85vh", display: "flex", flexDirection: "column",
+        paddingBottom: "env(safe-area-inset-bottom, 16px)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)" }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px 12px" }}>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18 }}>
+            Schüler einladen — {cls.name}
+          </div>
+          <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 14 }} onClick={onClose}>
+            Schließen
+          </button>
+        </div>
+        <div className="scroll" style={{ padding: "0 18px 16px" }}>
+          {!results ? (
+            <>
+              <div className="dim" style={{ fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
+                E-Mail-Adressen eintragen (eine pro Zeile oder per Komma/Semikolon trennen).
+                Jede Schülerin / jeder Schüler erhält automatisch einen Login-Link.
+              </div>
+              <textarea className="field" rows={7}
+                placeholder={"max@schule.ch\nlisa@schule.ch\ntom@schule.ch"}
+                value={emails} onChange={e => setEmails(e.target.value)}
+                style={{ resize: "vertical", fontFamily: "var(--font-ui)", fontSize: 15, lineHeight: 1.6, marginBottom: 14 }} />
+              <button className="btn btn-primary btn-block"
+                disabled={emailCount === 0 || sending}
+                onClick={handleSend}>
+                {sending ? "Wird gesendet …" : `${emailCount} Magic Link${emailCount !== 1 ? "s" : ""} senden`}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Ergebnis</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {results.map((r, i) => (
+                  <div key={i} className="card"
+                    style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10,
+                      borderColor: r.ok ? "var(--correct)" : "var(--wrong)" }}>
+                    <span style={{ fontSize: 18 }}>{r.ok ? "✅" : "❌"}</span>
+                    <div style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{r.email}</div>
+                    {!r.ok && <div className="dim" style={{ fontSize: 12 }}>{r.msg}</div>}
+                  </div>
+                ))}
+              </div>
+              <button className="btn btn-ghost btn-block" style={{ marginTop: 16 }} onClick={onClose}>
+                Fertig
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Klassen-Detail: Listen + Mitglieder ── */
 function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
   const [lists, setLists] = useT(null);
@@ -310,6 +523,8 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
   const [tab, setTab] = useT("lists");
   const [copied, setCopied] = useT(false);
   const [showAssign, setShowAssign] = useT(false);
+  const [showAddStudent, setShowAddStudent] = useT(false);
+  const [showBulkInvite, setShowBulkInvite] = useT(false);
   const link = inviteLink(cls.join_code);
 
   const loadLists = useTC(() => {
@@ -324,7 +539,7 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
   const loadMembers = useTC(() => {
     window._sb
       .from("voc_class_members")
-      .select("joined_at, voc_users(display_name, role)")
+      .select("user_id, joined_at, voc_users(display_name, role)")
       .eq("class_id", cls.id)
       .then(({ data }) => setMembers(data || []));
   }, [cls.id]);
@@ -335,6 +550,13 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
     loadLists();
   };
 
+  const removeMember = async (userId) => {
+    if (!window.confirm("Schüler/in aus dieser Klasse entfernen?")) return;
+    await window._sb.from("voc_class_members").delete()
+      .eq("class_id", cls.id).eq("user_id", userId);
+    loadMembers();
+  };
+
   useTE(() => { loadLists(); loadMembers(); }, []);
 
   return (
@@ -343,6 +565,14 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
         <AssignListModal cls={cls} session={session}
           onClose={() => setShowAssign(false)}
           onAssigned={() => { setShowAssign(false); loadLists(); }} />
+      )}
+      {showAddStudent && (
+        <AddStudentModal cls={cls}
+          onClose={() => setShowAddStudent(false)}
+          onAdded={() => { loadMembers(); }} />
+      )}
+      {showBulkInvite && (
+        <BulkInviteModal cls={cls} onClose={() => setShowBulkInvite(false)} />
       )}
 
       {/* Header */}
@@ -426,24 +656,42 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
         )}
 
         {tab === "members" && (
-          members === null ? <Spinner /> : members.length === 0 ? (
-            <EmptyState icon="👩‍🎓" title="Noch keine Mitglieder"
-              sub="Teile den Einladungslink damit Schülerinnen und Schüler beitreten können." />
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {members.map((m, i) => (
-                <div key={i} className="card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontSize: 22 }}>{m.voc_users?.role === "teacher" ? "👩‍🏫" : "🎒"}</span>
-                  <div style={{ fontFamily: "var(--font-ui)", fontWeight: 500, fontSize: 15 }}>
-                    {m.voc_users?.display_name ?? "—"}
-                  </div>
-                  <div className="dim" style={{ marginLeft: "auto", fontSize: 13 }}>
-                    {new Date(m.joined_at).toLocaleDateString("de-CH")}
-                  </div>
-                </div>
-              ))}
+          <>
+            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setShowAddStudent(true)}>
+                + Schüler hinzufügen
+              </button>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowBulkInvite(true)}>
+                📧 Einladen
+              </button>
             </div>
-          )
+
+            {members === null ? <Spinner /> : members.length === 0 ? (
+              <EmptyState icon="👩‍🎓" title="Noch keine Mitglieder"
+                sub="Füge Schüler manuell hinzu oder sende Einladungs-E-Mails." />
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {members.map((m, i) => (
+                  <div key={i} className="card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 22 }}>{m.voc_users?.role === "teacher" ? "👩‍🏫" : "🎒"}</span>
+                    <div style={{ flex: 1, fontFamily: "var(--font-ui)", fontWeight: 500, fontSize: 15 }}>
+                      {m.voc_users?.display_name ?? "—"}
+                    </div>
+                    <div className="dim" style={{ fontSize: 13, marginRight: 4 }}>
+                      {new Date(m.joined_at).toLocaleDateString("de-CH")}
+                    </div>
+                    {m.voc_users?.role !== "teacher" && (
+                      <button className="btn btn-ghost"
+                        style={{ padding: "4px 10px", fontSize: 12, color: "var(--wrong)", flexShrink: 0 }}
+                        onClick={() => removeMember(m.user_id)}>
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -470,6 +718,14 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
     reader.onload = (ev) => setRaw(ev.target.result);
     reader.readAsText(file, "UTF-8");
     e.target.value = "";
+  };
+
+  const handleDelete = async () => {
+    if (!list || !window.confirm(`Liste "${list.name}" und alle Wörter löschen?`)) return;
+    await window._sb.from("voc_words").delete().eq("list_id", list.id);
+    await window._sb.from("voc_class_lists").delete().eq("list_id", list.id);
+    await window._sb.from("voc_lists").delete().eq("id", list.id);
+    onSaved();
   };
 
   const handleSave = async () => {
@@ -513,11 +769,17 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div style={{ padding: "16px 18px 12px", flexShrink: 0 }}>
-        <button className="btn btn-ghost" style={{ padding: "8px 12px", fontSize: 14, marginBottom: 12 }} onClick={onBack}>
+      <div style={{ padding: "16px 18px 12px", flexShrink: 0, display: "flex", alignItems: "center", gap: 10 }}>
+        <button className="btn btn-ghost" style={{ padding: "8px 12px", fontSize: 14 }} onClick={onBack}>
           <Icon name="arrowL" size={16} /> {cls ? cls.name : "Alle Listen"}
         </button>
-        <div className="h1">{isNew ? "Neue Liste" : "Liste bearbeiten"}</div>
+        <div className="h1" style={{ flex: 1 }}>{isNew ? "Neue Liste" : "Liste bearbeiten"}</div>
+        {!isNew && (
+          <button className="btn btn-ghost" style={{ padding: "8px 12px", fontSize: 13, color: "var(--wrong)" }}
+            onClick={handleDelete}>
+            Löschen
+          </button>
+        )}
       </div>
 
       <div className="scroll" style={{ padding: "0 18px 32px" }}>
@@ -669,7 +931,6 @@ function TeacherStatsView({ session }) {
 
   return (
     <div className="scroll" style={{ padding: "0 18px 32px" }}>
-      {/* Klassen-Filter */}
       {classes && classes.length > 0 && (
         <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", padding: "14px 0 12px" }}>
           {[{ id: "all", name: "Alle" }, ...classes].map(c => (
@@ -784,6 +1045,8 @@ function TeacherDashboard({ session, go }) {
     setView("list-editor");
   };
 
+  const handleLogout = () => window._sb.auth.signOut();
+
   if (view === "new-class") return (
     <NewClassForm session={session}
       onBack={() => setView("main")}
@@ -805,20 +1068,26 @@ function TeacherDashboard({ session, go }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      {/* Top-Level Tab Bar */}
+      {/* Top-Level Tab Bar mit Logout */}
       <div style={{ padding: "16px 18px 0", flexShrink: 0 }}>
-        <div style={{ display: "flex", background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: 3 }}>
-          {[["stats", "📊"], ["classes", "🏫"], ["lists", "📚"]].map(([t, label]) => (
-            <button key={t} onClick={() => setMainTab(t)}
-              style={{ flex: 1, padding: "9px 0", border: "none", borderRadius: "calc(var(--r-md) - 3px)",
-                fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 18, cursor: "pointer",
-                background: mainTab === t ? "var(--surface)" : "transparent",
-                color: mainTab === t ? "var(--text)" : "var(--text-dim)",
-                boxShadow: mainTab === t ? "0 1px 4px var(--shadow)" : "none",
-                transition: "all var(--t-fast)" }}>
-              {label}
-            </button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <div style={{ display: "flex", background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: 3, flex: 1 }}>
+            {[["stats", "📊"], ["classes", "🏫"], ["lists", "📚"]].map(([t, label]) => (
+              <button key={t} onClick={() => setMainTab(t)}
+                style={{ flex: 1, padding: "9px 0", border: "none", borderRadius: "calc(var(--r-md) - 3px)",
+                  fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 18, cursor: "pointer",
+                  background: mainTab === t ? "var(--surface)" : "transparent",
+                  color: mainTab === t ? "var(--text)" : "var(--text-dim)",
+                  boxShadow: mainTab === t ? "0 1px 4px var(--shadow)" : "none",
+                  transition: "all var(--t-fast)" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button className="btn btn-ghost" style={{ padding: "10px 14px", fontSize: 14, flexShrink: 0 }}
+            onClick={handleLogout}>
+            Abmelden
+          </button>
         </div>
       </div>
 
