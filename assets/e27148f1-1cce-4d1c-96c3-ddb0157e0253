@@ -56,6 +56,39 @@ const LANGUAGES = [
   { id: "fr", name: "Französisch", short: "FR" },
 ];
 
+// --- Built-in irregular English verbs (separate from imported CSV vocab) ---
+const IRREGULAR_VERBS = [
+  { id: "irr-be",       en: "to be",       de: "sein",              pastSimple: "was/were", pastParticiple: "been" },
+  { id: "irr-have",     en: "to have",     de: "haben",             pastSimple: "had",       pastParticiple: "had" },
+  { id: "irr-do",       en: "to do",       de: "tun, machen",       pastSimple: "did",       pastParticiple: "done" },
+  { id: "irr-go",       en: "to go",       de: "gehen",             pastSimple: "went",      pastParticiple: "gone" },
+  { id: "irr-get",      en: "to get",      de: "bekommen",          pastSimple: "got",       pastParticiple: "got" },
+  { id: "irr-make",     en: "to make",     de: "machen, herstellen",pastSimple: "made",      pastParticiple: "made" },
+  { id: "irr-know",     en: "to know",     de: "wissen, kennen",    pastSimple: "knew",      pastParticiple: "known" },
+  { id: "irr-think",    en: "to think",    de: "denken",            pastSimple: "thought",   pastParticiple: "thought" },
+  { id: "irr-take",     en: "to take",     de: "nehmen",            pastSimple: "took",      pastParticiple: "taken" },
+  { id: "irr-see",      en: "to see",      de: "sehen",             pastSimple: "saw",       pastParticiple: "seen" },
+  { id: "irr-come",     en: "to come",     de: "kommen",            pastSimple: "came",      pastParticiple: "come" },
+  { id: "irr-give",     en: "to give",     de: "geben",             pastSimple: "gave",      pastParticiple: "given" },
+  { id: "irr-find",     en: "to find",     de: "finden",            pastSimple: "found",     pastParticiple: "found" },
+  { id: "irr-tell",     en: "to tell",     de: "erzählen, sagen",   pastSimple: "told",      pastParticiple: "told" },
+  { id: "irr-become",   en: "to become",   de: "werden",            pastSimple: "became",    pastParticiple: "become" },
+  { id: "irr-leave",    en: "to leave",    de: "verlassen, gehen",  pastSimple: "left",      pastParticiple: "left" },
+  { id: "irr-feel",     en: "to feel",     de: "fühlen",            pastSimple: "felt",      pastParticiple: "felt" },
+  { id: "irr-bring",    en: "to bring",    de: "bringen",           pastSimple: "brought",   pastParticiple: "brought" },
+  { id: "irr-begin",    en: "to begin",    de: "beginnen",          pastSimple: "began",     pastParticiple: "begun" },
+  { id: "irr-keep",     en: "to keep",     de: "behalten",          pastSimple: "kept",      pastParticiple: "kept" },
+  { id: "irr-write",    en: "to write",    de: "schreiben",         pastSimple: "wrote",     pastParticiple: "written" },
+  { id: "irr-speak",    en: "to speak",    de: "sprechen",          pastSimple: "spoke",     pastParticiple: "spoken" },
+  { id: "irr-run",      en: "to run",      de: "rennen, laufen",    pastSimple: "ran",       pastParticiple: "run" },
+  { id: "irr-eat",      en: "to eat",      de: "essen",             pastSimple: "ate",       pastParticiple: "eaten" },
+  { id: "irr-drink",    en: "to drink",    de: "trinken",           pastSimple: "drank",     pastParticiple: "drunk" },
+  { id: "irr-break",    en: "to break",    de: "brechen, kaputt machen", pastSimple: "broke", pastParticiple: "broken" },
+  { id: "irr-buy",      en: "to buy",      de: "kaufen",            pastSimple: "bought",    pastParticiple: "bought" },
+  { id: "irr-sit",      en: "to sit",      de: "sitzen",            pastSimple: "sat",       pastParticiple: "sat" },
+];
+const verbsById = Object.fromEntries(IRREGULAR_VERBS.map(v => [v.id, v]));
+
 let ACTIVE_LANGUAGE = "en";
 let VOCAB = [];
 let TOTAL_WORDS = 0;
@@ -544,6 +577,17 @@ function buildSession(state, types, max = 15) {
   return queue.slice(0, max);
 }
 
+// Build a practice queue for the built-in irregular verbs (reuses the same
+// Leitner store as VOCAB, namespaced via the "irr-" id prefix, so weaker
+// verbs resurface first without touching the main vocab's due cadence).
+function makeVerbQuestion(verb) {
+  return { kind: "verbform", word: verb, correctPast: verb.pastSimple, correctParticiple: verb.pastParticiple };
+}
+function buildVerbSession(state, max = 10) {
+  const sorted = [...IRREGULAR_VERBS].sort((a, b) => getLevel(state, a.id) - getLevel(state, b.id) || Math.random() - 0.5);
+  return sorted.slice(0, Math.min(max, IRREGULAR_VERBS.length)).map(makeVerbQuestion);
+}
+
 // Test mode: every word once, MC only, no leitner change.
 function buildTest(state) {
   const all = pick(VOCAB, VOCAB.length);
@@ -576,7 +620,9 @@ function finishSession(state, score, total, mode) {
       else state.streak = 1;
       state.lastSessionDate = today;
     }
-    state.sessionsCount += 1;
+    // Verb practice keeps the streak alive but must not shift the main
+    // vocab's due cadence (dueWords keys off sessionsCount).
+    if (mode !== "verbs") state.sessionsCount += 1;
   }
   const pct = total ? Math.round((score / total) * 100) : 0;
   state.history.unshift({ date: today, ts: Date.now(), score, total, pct, mode });
@@ -660,12 +706,14 @@ const THEMES = [
 
 Object.assign(window, {
   VOCAB, TOTAL_WORDS, byId, THEMES, LANGUAGES,
+  IRREGULAR_VERBS, verbsById,
   loadState, saveState, resetAll, defaultState, setActiveLanguage, switchLanguage,
   listChildren, addChildProfile, switchChild, renameChild, childSummary,
   verifyParentPin, changeParentPin, hasImportedVocabulary, deleteVocabulary,
   importVocabularyCsv, downloadBackup, restoreBackupText, languageLabel, languageShort,
   getLevel, dueWords, masteryDistribution, accuracy,
   buildSession, buildTest, makeQuestion, applyResult, finishSession,
+  makeVerbQuestion, buildVerbSession,
   pick, todayStr,
   weeklyActivity, relativeDate, exportParentSnapshot, makeParentShareUrl,
 });

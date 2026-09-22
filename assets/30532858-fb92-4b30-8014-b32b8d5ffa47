@@ -204,6 +204,9 @@ function Home({ state, go, onOpenTheme }) {
       <div className="vt-home-tiles" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
         <TileBtn icon="stethoscope" title="Test-Modus" sub="Alle Wörter prüfen" onClick={() => go("test")} />
         <TileBtn icon="list" title="Wortschatz" sub="Alle Vokabeln" onClick={() => go("overview")} />
+        {state.language === "en" && (
+          <TileBtn icon="book" title="Unregelmäßige Verben" sub="Simple Past & Participle" onClick={() => go("verbs")} />
+        )}
         <TileBtn icon="trophy" title="Bestenliste" sub="Letzte Sessions" onClick={() => go("leaderboard")} />
         <TileBtn icon="target" title="Eltern" sub="Lernstand ansehen" onClick={() => go("parent")} />
       </div>
@@ -227,7 +230,7 @@ function TileBtn({ icon, title, sub, onClick }) {
 /* ---------------- SESSION RESULT ---------------- */
 function Result({ result, mode, state, go, tweaks }) {
   const pct = result.total ? Math.round(result.score / result.total * 100) : 0;
-  const wrong = result.wrongWords.map(id => byId[id]).filter(Boolean);
+  const wrong = result.wrongWords.map(id => byId[id] || verbsById[id]).filter(Boolean);
   const [confetti] = useS(() => tweaks.feedbackStyle !== "aus" && pct >= 60);
   useE(() => { if (pct >= 80) tone("win", tweaks.sound); }, []);
   const headline = pct >= 90 ? "Stark gemacht!" : pct >= 60 ? "Gut gemacht!" : "Weiter dranbleiben!";
@@ -254,7 +257,9 @@ function Result({ result, mode, state, go, tweaks }) {
             {wrong.map(w => (
               <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--surface-2)", borderRadius: 12 }}>
                 <span style={{ fontWeight: 600 }}>{w.en}</span>
-                <span className="dim" style={{ fontSize: 14 }}>→ {w.de}</span>
+                <span className="dim" style={{ fontSize: 14 }}>
+                  {w.pastSimple ? `→ ${w.pastSimple} · ${w.pastParticiple}` : `→ ${w.de}`}
+                </span>
               </div>
             ))}
           </div>

@@ -35,6 +35,8 @@ function App() {
       setQueue(buildSession(state, ACTIVE_TYPES, 15)); setMode("session"); setScreen("quiz");
     } else if (target === "test") {
       setQueue(buildTest(state)); setMode("test"); setScreen("quiz");
+    } else if (target === "verbs") {
+      setQueue(buildVerbSession(state, 10)); setMode("verbs"); setScreen("quiz");
     } else if (target === "parent") {
       const pin = window.prompt("Eltern-PIN");
       if (pin === null) return;
@@ -56,7 +58,7 @@ function App() {
         result.leitnerUpdates.forEach(u => applyResult(s, u.id, u.outcome));
         s.xp += result.xp;
       }
-      finishSession(s, result.score, result.total, mode === "test" ? "test" : "session");
+      finishSession(s, result.score, result.total, mode);
       return s;
     });
     setLastResult(result);
