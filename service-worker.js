@@ -1,4 +1,4 @@
-const CACHE_NAME = "vt-cache-v12";
+const CACHE_NAME = "vt-cache-v13";
 
 // Nur wirklich statische Assets (Fonts, Icons) → Cache-First
 const STATIC_ASSETS = [

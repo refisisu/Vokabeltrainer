@@ -144,6 +144,77 @@ function TypeQuestion({ q, onResolve, tweaks }) {
   );
 }
 
+/* ---------- VERB FORMS (irregular verbs: simple past + past participle) ---------- */
+function formMatches(input, correct) {
+  // Some verbs list alternative forms ("was/were") — accept any of them.
+  return String(correct || "").split("/").map(s => s.trim()).filter(Boolean)
+    .some(alt => answerMatches(input, alt));
+}
+function VerbFormQuestion({ q, onResolve, tweaks }) {
+  const [past, setPast] = useStateQ("");
+  const [participle, setParticiple] = useStateQ("");
+  const [attempt, setAttempt] = useStateQ(0); // 0 first, 1 second
+  const [badPast, setBadPast] = useStateQ(false);
+  const [badParticiple, setBadParticiple] = useStateQ(false);
+  const fieldsRef = useRefQ(null);
+  const pastRef = useRefQ(null);
+  useEffectQ(() => { const t = setTimeout(() => pastRef.current && pastRef.current.focus(), 250); return () => clearTimeout(t); }, []);
+  const verb = q.word;
+
+  const submit = (e) => {
+    e && e.preventDefault();
+    if (!past.trim() || !participle.trim()) return;
+    const pastOk = formMatches(past, q.correctPast);
+    const participleOk = formMatches(participle, q.correctParticiple);
+    const bothCorrect = q.correctPast + " · " + q.correctParticiple;
+    if (pastOk && participleOk) {
+      tone("correct", tweaks.sound);
+      onResolve({ outcome: attempt === 0 ? "first" : "second", correct: bothCorrect });
+      return;
+    }
+    tone("wrong", tweaks.sound);
+    if (attempt === 0) {
+      setAttempt(1); setBadPast(!pastOk); setBadParticiple(!participleOk);
+      if (tweaks.shake) { const el = fieldsRef.current; el && el.classList.remove("shake"); void (el && el.offsetWidth); el && el.classList.add("shake"); }
+      setTimeout(() => { setBadPast(false); setBadParticiple(false); }, 450);
+    } else {
+      onResolve({ outcome: "wrong", correct: bothCorrect });
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="q-enter vt-type-question" style={{ display: "flex", flexDirection: "column", gap: 20, flex: 1 }}>
+      <div className="vt-type-prompt">
+        <div className="eyebrow" style={{ marginBottom: 14 }}>Bilde die Formen</div>
+        <div className="display" style={{ fontSize: 40, fontWeight: 600 }}>{verb.en}</div>
+        <div className="dim" style={{ marginTop: 10, fontSize: 15 }}>{verb.de}</div>
+      </div>
+      <div ref={fieldsRef} className="vt-type-answer" style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+        {attempt === 1 && (
+          <div className="pop" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--wrong)" }}>
+            <Icon name="x" size={16} /> Fast! Versuch es noch einmal.
+          </div>
+        )}
+        <div>
+          <div className="dim" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Simple Past</div>
+          <input ref={pastRef} className="field" value={past} onChange={(e) => setPast(e.target.value)}
+            placeholder="z. B. went" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck="false"
+            style={badPast ? { borderColor: "var(--wrong)" } : {}} />
+        </div>
+        <div>
+          <div className="dim" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Past Participle</div>
+          <input className="field" value={participle} onChange={(e) => setParticiple(e.target.value)}
+            placeholder="z. B. gone" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck="false"
+            style={badParticiple ? { borderColor: "var(--wrong)" } : {}} />
+        </div>
+        <button type="submit" className="btn btn-primary btn-block" disabled={!past.trim() || !participle.trim()}>
+          Prüfen <Icon name="check" size={20} />
+        </button>
+      </div>
+    </form>
+  );
+}
+
 /* ---------- MATCH PAIRS ---------- */
 function MatchQuestion({ q, onResolve, tweaks }) {
   const pairs = q.pairs;
@@ -278,7 +349,7 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
     setIdx(idx + 1);
   };
 
-  const QComp = q.kind === "mc" ? MCQuestion : q.kind === "match" ? MatchQuestion : TypeQuestion;
+  const QComp = q.kind === "mc" ? MCQuestion : q.kind === "match" ? MatchQuestion : q.kind === "verbform" ? VerbFormQuestion : TypeQuestion;
 
   return (
     <div className="vt-quiz" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
@@ -299,4 +370,4 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
   );
 }
 
-Object.assign(window, { Quiz, MCQuestion, TypeQuestion, MatchQuestion, FeedbackBar, tone, answerMatches, extraInfo });
+Object.assign(window, { Quiz, MCQuestion, TypeQuestion, MatchQuestion, VerbFormQuestion, FeedbackBar, tone, answerMatches, extraInfo });
