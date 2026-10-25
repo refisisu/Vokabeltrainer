@@ -22,7 +22,6 @@ async function joinClass(joinCode, userId) {
 /* ── VocSetup: Anzeigename beim ersten Login (keine Rollenauswahl) ── */
 function VocSetup({ session, onDone }) {
   const storedName = sessionStorage.getItem("vt_signup_name") || session.user.email.split("@")[0];
-  const isTeacher = sessionStorage.getItem("vt_teacher_token") === TEACHER_INVITE_TOKEN;
   const [displayName, setDisplayName] = useAS(storedName);
   const [loading, setLoading] = useAS(false);
   const [error, setError] = useAS(null);
@@ -31,8 +30,8 @@ function VocSetup({ session, onDone }) {
     if (!displayName.trim()) return;
     setLoading(true);
     setError(null);
-    const role = isTeacher ? "teacher" : "student";
-    sessionStorage.removeItem("vt_teacher_token");
+    // Rolle wird serverseitig erzwungen (Trigger voc_users_protect_role); Lehrer/Admin nur per SQL.
+    const role = "student";
     sessionStorage.removeItem("vt_signup_name");
     const { error } = await window._sb.from("voc_users").upsert({
       id: session.user.id,
@@ -56,14 +55,6 @@ function VocSetup({ session, onDone }) {
             Wie soll dein Name angezeigt werden?
           </div>
         </div>
-
-        {isTeacher && (
-          <div style={{ marginBottom: 16, padding: "10px 14px", background: "var(--primary-soft)",
-            borderRadius: "var(--r-sm)", textAlign: "center", fontSize: 14, fontWeight: 600,
-            color: "var(--accent)" }}>
-            👩‍🏫 Lehrer-Konto wird eingerichtet
-          </div>
-        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <input
@@ -109,15 +100,7 @@ function AuthScreen({ joinCode }) {
   const [error, setError] = useAS(null);
   const emailRef = useAR(null);
 
-  // Lehrer-Token aus URL erkennen und in sessionStorage sichern
-  useAE(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("teacher");
-    if (token) sessionStorage.setItem("vt_teacher_token", token);
-    emailRef.current?.focus();
-  }, []);
-
-  const isTeacherToken = sessionStorage.getItem("vt_teacher_token") === TEACHER_INVITE_TOKEN;
+  useAE(() => { emailRef.current?.focus(); }, []);
 
   useAE(() => {
     setError(null);
@@ -179,16 +162,11 @@ function AuthScreen({ joinCode }) {
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <Voki mood="happy" size={110} float />
           <div className="h1" style={{ marginTop: 16 }}>
-            {joinCode ? "Klasse beitreten" : isTeacherToken ? "Lehrer-Konto erstellen" : "Vokabeltrainer"}
+            {joinCode ? "Klasse beitreten" : "Vokabeltrainer"}
           </div>
           {joinCode && (
             <div className="dim" style={{ fontSize: 15, marginTop: 8, lineHeight: 1.5 }}>
               Du wurdest eingeladen! Melde dich an oder registriere dich, um der Klasse beizutreten.
-            </div>
-          )}
-          {isTeacherToken && !joinCode && (
-            <div className="dim" style={{ fontSize: 15, marginTop: 8, lineHeight: 1.5 }}>
-              Du wurdest als Lehrer eingeladen. Erstelle ein Konto, um zu starten.
             </div>
           )}
         </div>
