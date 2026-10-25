@@ -61,7 +61,14 @@ function StudentListPicker({ session, go, inClass }) {
       .filter(w => w.en && w.de);
     if (!mapped.length) { setErr("Diese Liste enthält noch keine Wörter."); setBusy(null); return; }
     const lang = ACTIVE_LANGUAGE || "en";
-    localStorage.setItem("vt_vocab_" + lang, JSON.stringify(mapped));
+    // Zusammenführen statt ersetzen: lokale Wörter (und ihr Fortschritt, der an der Wort-ID hängt) bleiben unverändert.
+    const key = "vt_vocab_" + lang;
+    let existing = [];
+    try { existing = JSON.parse(localStorage.getItem(key) || "[]") || []; } catch (e) { existing = []; }
+    const norm = (t) => (t || "").trim().toLowerCase();
+    const known = new Set(existing.map(w => norm(w.en)));
+    const added = mapped.filter(w => !known.has(norm(w.en)));
+    localStorage.setItem(key, JSON.stringify([...existing, ...added]));
     localStorage.setItem("vt_active_list", JSON.stringify({ id: list.id, name: list.name }));
     refreshVocabulary(lang);
     setBusy(null);
