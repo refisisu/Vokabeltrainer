@@ -59,6 +59,16 @@ function App() {
     if (isOnline && session) flushPendingSessions(session.user.id);
   }, [isOnline, session]);
 
+  // Lernstand abgleichen, wenn das Gerät wieder online ist oder die App wieder im Vordergrund liegt
+  useAE(() => {
+    if (!session || vocUser?.role !== "student") return;
+    const userId = session.user.id;
+    if (isOnline) runSync(userId);
+    const onVisible = () => { if (document.visibilityState === "visible") runSync(userId); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [isOnline, session?.user?.id, vocUser?.role]);
+
   // Auth: session bootstrap + listener
   useAE(() => {
     window._sb.auth.getSession().then(({ data: { session } }) => {
@@ -87,14 +97,47 @@ function App() {
   }, []);
 
   async function loadVocUser(userId) {
-    const [{ data: user }, { data: membership }] = await Promise.all([
+    const cacheKey = "vt_voc_user_" + userId;
+    const [{ data: user, error: userError }, { data: membership, error: memberError }] = await Promise.all([
       window._sb.from("voc_users").select("*").eq("id", userId).maybeSingle(),
       window._sb.from("voc_class_members").select("id").eq("user_id", userId).limit(1).maybeSingle(),
     ]);
+    if (userError || memberError) {
+      // Offline: letzten bekannten Stand nutzen, sonst landet das Kind im Einrichtungs-Bildschirm
+      let cached = null;
+      try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch (e) {}
+      setVocUser(cached?.user || null);
+      setInClass(!!cached?.inClass);
+      setAuthLoading(false);
+      return;
+    }
+    try { localStorage.setItem(cacheKey, JSON.stringify({ user, inClass: !!membership })); } catch (e) {}
     setVocUser(user || null);
     setInClass(!!membership);
     setAuthLoading(false);
   }
+
+  async function runSync(userId) {
+    const { changed } = await syncProgress(userId);
+    if (!changed) return;
+    const fresh = loadState();
+    setState(fresh);
+    setVocabTick(t => t + 1);
+    setScreen(cur => {
+      if (!fresh.onboarded) return "onboarding";
+      return cur === "onboarding" ? "home" : cur;
+    });
+  }
+
+  const handleLogout = async () => {
+    const warning = navigator.onLine
+      ? "Wirklich abmelden? Dein Lernstand bleibt gespeichert."
+      : "Du bist offline. Zum erneuten Anmelden brauchst du Internet. Trotzdem abmelden?";
+    if (!window.confirm(warning)) return;
+    if (session && vocUser?.role === "student") await runSync(session.user.id);
+    await window._sb.auth.signOut();
+    setScreen(loadState().onboarded ? "home" : "onboarding");
+  };
 
   const joinCode = new URLSearchParams(window.location.search).get("join");
 
@@ -104,6 +147,10 @@ function App() {
   const [mode, setMode] = useA("session");
   const [lastResult, setLastResult] = useA(null);
   const [themeSheet, setThemeSheet] = useA(false);
+  const [localMode, setLocalMode] = useA(false);
+  const [, setVocabTick] = useA(0);
+  const [syncTick, setSyncTick] = useA(0);
+  const lastWordCount = useARef(TOTAL_WORDS);
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   useStarfield();
@@ -111,6 +158,10 @@ function App() {
   window.__vtTheme = state.onboarded ? state.theme : "city";
 
   useAE(() => { saveState(state); }, [state]);
+  // Nach saveState, damit der Abgleich den frisch gespeicherten Stand sieht
+  useAE(() => {
+    if (syncTick > 0 && session && vocUser?.role === "student") runSync(session.user.id);
+  }, [syncTick]);
   useAE(() => { if (state.onboarded) document.body.className = "theme-" + state.theme; }, [state.theme, state.onboarded]);
 
   const go = (target) => {
@@ -128,8 +179,17 @@ function App() {
         return;
       }
       setScreen("parent");
+    } else if (target === "local") {
+      setLocalMode(true);
+      setScreen("home");
     } else {
       setScreen(target);
+      // TOTAL_WORDS ist global und löst kein Re-Render aus, auch wenn screen gleich bleibt
+      setVocabTick(t => t + 1);
+      if (target === "student-lists" || (target === "home" && lastWordCount.current !== TOTAL_WORDS)) {
+        lastWordCount.current = TOTAL_WORDS;
+        setSyncTick(t => t + 1);
+      }
     }
     const sc = document.querySelector(".scroll"); // reset scroll on nav
   };
@@ -144,6 +204,7 @@ function App() {
       finishSession(s, result.score, result.total, mode);
       return s;
     });
+    setSyncTick(t => t + 1);
     setLastResult(result);
     setScreen(mode === "test" ? "diagnose" : "result");
 
@@ -187,7 +248,7 @@ function App() {
   else if (screen === "home") {
     if (!SKIP_AUTH && vocUser?.role === "teacher") {
       view = <TeacherDashboard session={session} go={go} />;
-    } else if (!SKIP_AUTH && vocUser?.role === "student" && TOTAL_WORDS === 0) {
+    } else if (!SKIP_AUTH && vocUser?.role === "student" && TOTAL_WORDS === 0 && !localMode) {
       view = <StudentListPicker session={session} go={go} inClass={inClass} />;
     } else {
       view = <Home state={state} go={go} onOpenTheme={() => setThemeSheet(true)} vocUser={vocUser} />;
@@ -201,7 +262,7 @@ function App() {
   else if (screen === "overview") view = <Overview state={state} go={go} />;
   else if (screen === "leaderboard") view = <Leaderboard state={state} go={go} />;
   else if (screen === "parent") view = <ParentDashboard state={state} setState={setState} go={go} />;
-  else if (screen === "settings") view = <Settings state={state} setState={setState} go={go} onOpenTheme={() => setThemeSheet(true)} tweaks={tweaks} setTweak={setTweak} />;
+  else if (screen === "settings") view = <Settings state={state} setState={setState} go={go} onOpenTheme={() => setThemeSheet(true)} tweaks={tweaks} setTweak={setTweak} onLogout={session ? handleLogout : null} />;
 
   return (
     <React.Fragment>

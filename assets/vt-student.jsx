@@ -1,100 +1,46 @@
-// vt-student.jsx — Student view: vocabulary list picker from class assignments
-
-const { useState: useSt, useEffect: useStE } = React;
+// vt-student.jsx — Student view: wählt aus, welche zugewiesene Liste geübt wird
 
 function StudentListPicker({ session, go, inClass }) {
-  const [lists, setLists] = useSt(null);
-  const [busy, setBusy] = useSt(null);
-  const [err, setErr] = useSt(null);
+  const showLists = ACTIVE_LANGUAGE === ASSIGNED_LISTS_LANG;
+  const lists = showLists ? readAssignedLists() : [];
+  const active = activeAssignedList();
+  const totalWords = loadVocabulary(ACTIVE_LANGUAGE).length;
+  const hasLists = lists.length > 0;
 
-  useStE(() => {
-    window._sb
-      .from("voc_class_members")
-      .select(`
-        voc_classes(
-          id, name,
-          voc_class_lists(
-            voc_lists(id, name, voc_words(count))
-          )
-        )
-      `)
-      .eq("user_id", session.user.id)
-      .then(({ data, error }) => {
-        if (error) { setErr(error.message); return; }
-        const map = new Map();
-        (data || []).forEach(m => {
-          const cls = m.voc_classes;
-          if (!cls) return;
-          (cls.voc_class_lists || []).forEach(cl => {
-            const list = cl.voc_lists;
-            if (list && !map.has(list.id)) {
-              map.set(list.id, {
-                id: list.id,
-                name: list.name,
-                wordCount: list.voc_words?.[0]?.count ?? 0,
-                className: cls.name,
-              });
-            }
-          });
-        });
-        setLists([...map.values()]);
-      });
-  }, [session.user.id]);
-
-  const pickList = async (list) => {
-    setBusy(list.id);
-    setErr(null);
-    const { data: words, error } = await window._sb
-      .from("voc_words")
-      .select("id, original, translation, beispiel, hinweis, aussprache")
-      .eq("list_id", list.id);
-    if (error) { setErr(error.message); setBusy(null); return; }
-    const mapped = (words || [])
-      .map(w => ({
-        en: (w.original || "").trim(),
-        de: (w.translation || "").trim(),
-        example: (w.beispiel || "").trim(),
-        note: (w.hinweis || "").trim(),
-        pronunciation: (w.aussprache || "").trim(),
-        id: "cloud-" + w.id,
-      }))
-      .filter(w => w.en && w.de);
-    if (!mapped.length) { setErr("Diese Liste enthält noch keine Wörter."); setBusy(null); return; }
-    const lang = ACTIVE_LANGUAGE || "en";
-    // Zusammenführen statt ersetzen: lokale Wörter (und ihr Fortschritt, der an der Wort-ID hängt) bleiben unverändert.
-    const key = "vt_vocab_" + lang;
-    let existing = [];
-    try { existing = JSON.parse(localStorage.getItem(key) || "[]") || []; } catch (e) { existing = []; }
-    const norm = (t) => (t || "").trim().toLowerCase();
-    const known = new Set(existing.map(w => norm(w.en)));
-    const added = mapped.filter(w => !known.has(norm(w.en)));
-    localStorage.setItem(key, JSON.stringify([...existing, ...added]));
-    localStorage.setItem("vt_active_list", JSON.stringify({ id: list.id, name: list.name }));
-    refreshVocabulary(lang);
-    setBusy(null);
+  const choose = (listId) => {
+    selectAssignedList(listId);
     go("home");
   };
 
   const handleLogout = () => window._sb.auth.signOut();
 
-  if (!lists && !err) {
-    return (
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div className="dim" style={{ fontSize: 15 }}>Laden …</div>
-      </div>
-    );
-  }
+  const optionStyle = (selected) => ({
+    padding: "16px 18px", textAlign: "left", cursor: "pointer",
+    display: "flex", alignItems: "center", gap: 14, width: "100%",
+    outline: selected ? "2px solid var(--accent)" : "none",
+  });
 
-  const hasLists = lists && lists.length > 0;
+  const option = (key, icon, title, sub, selected, onClick) => (
+    <button key={key} className="card" onClick={onClick} style={optionStyle(selected)}>
+      <span style={{ fontSize: 26 }}>{icon}</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 17 }}>{title}</div>
+        <div className="dim" style={{ fontSize: 13, marginTop: 2 }}>{sub}</div>
+      </div>
+      {selected
+        ? <div style={{ fontSize: 13, fontWeight: 600, color: "var(--accent)" }}>Aktiv</div>
+        : <Icon name="arrowR" size={18} style={{ color: "var(--text-dim)" }} />}
+    </button>
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       {/* Header mit Logout */}
       <div style={{ padding: "20px 18px 14px", flexShrink: 0, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
-          <div className="h1">Meine Vokabeln</div>
+          <div className="h1">Meine Listen</div>
           <div className="dim" style={{ fontSize: 14, marginTop: 4, lineHeight: 1.5 }}>
-            {hasLists ? "Wähle eine Liste aus deiner Klasse zum Üben." : "Noch keine Liste von deiner Lehrperson."}
+            {totalWords > 0 ? "Was möchtest du üben?" : "Noch keine Liste von deiner Lehrperson."}
           </div>
         </div>
         <button className="btn btn-ghost" style={{ padding: "8px 14px", fontSize: 14, flexShrink: 0, marginLeft: 10 }}
@@ -103,14 +49,7 @@ function StudentListPicker({ session, go, inClass }) {
         </button>
       </div>
 
-      <div className="scroll" style={{ padding: "0 18px 32px" }}>
-        {err && (
-          <div style={{ padding: "12px 14px", background: "var(--wrong-soft)", color: "var(--wrong)",
-            borderRadius: "var(--r-md)", fontSize: 14, marginBottom: 14 }}>
-            {err}
-          </div>
-        )}
-
+      <div className="scroll" style={{ padding: "3px 18px 32px" }}>
         {/* Kein-Klasse-Banner wenn nicht in einer Klasse */}
         {!inClass && (
           <div style={{ padding: "14px 16px", background: "var(--surface-2)",
@@ -126,56 +65,46 @@ function StudentListPicker({ session, go, inClass }) {
           </div>
         )}
 
-        {hasLists ? (
+        {totalWords > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {lists.map(list => (
-              <button key={list.id} className="card"
-                disabled={!!busy}
-                onClick={() => pickList(list)}
-                style={{ padding: "16px 18px", textAlign: "left",
-                  cursor: busy ? "wait" : "pointer",
-                  display: "flex", alignItems: "center", gap: 14, width: "100%",
-                  opacity: busy && busy !== list.id ? 0.5 : 1 }}>
-                <span style={{ fontSize: 26 }}>📋</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 17 }}>
-                    {list.name}
-                  </div>
-                  <div className="dim" style={{ fontSize: 13, marginTop: 2 }}>
-                    {list.className} · {list.wordCount} Wörter
-                  </div>
-                </div>
-                {busy === list.id
-                  ? <div className="dim" style={{ fontSize: 14 }}>…</div>
-                  : <Icon name="arrowR" size={18} style={{ color: "var(--text-dim)" }} />
-                }
-              </button>
-            ))}
+            {option("all", "📚", "Alle Wörter", totalWords + " Wörter", !active, () => choose(null))}
+            {lists.map(list => option(list.id, "📋", list.name, list.keys.length + " Wörter", active?.id === list.id, () => choose(list.id)))}
           </div>
         ) : (
-          <div style={{ textAlign: "center", padding: "40px 20px", display: "flex",
-            flexDirection: "column", alignItems: "center", gap: 16 }}>
-            <Voki mood="idle" size={100} />
-            <div className="h2">Noch keine Liste</div>
-            <div className="dim" style={{ fontSize: 14, lineHeight: 1.55, maxWidth: 280 }}>
-              Deine Lehrperson hat dir noch keine Vokabelliste zugewiesen.
+          <React.Fragment>
+            <div style={{ textAlign: "center", padding: "40px 20px", display: "flex",
+              flexDirection: "column", alignItems: "center", gap: 16 }}>
+              <Voki mood="idle" size={100} />
+              <div className="h2">Noch keine Liste</div>
+              <div className="dim" style={{ fontSize: 14, lineHeight: 1.55, maxWidth: 280 }}>
+                Deine Lehrperson hat dir noch keine Vokabelliste zugewiesen.
+              </div>
             </div>
-          </div>
+            <div style={{ padding: "14px 16px", background: "var(--surface)",
+              border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Lokal üben</div>
+              <div className="dim" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>
+                Du kannst eigene Vokabeln hochladen und lokal üben – unabhängig von deiner Klasse.
+                {!inClass && " Diese Fortschritte werden nicht in die Rangliste eingetragen."}
+              </div>
+              <button className="btn btn-ghost" style={{ width: "100%", fontSize: 15 }}
+                onClick={() => go("local")}>
+                Eigene Vokabeln nutzen
+              </button>
+            </div>
+          </React.Fragment>
         )}
 
-        {/* Immer sichtbar: Lokal üben */}
-        <div style={{ marginTop: hasLists ? 20 : 0, padding: "14px 16px", background: "var(--surface)",
-          border: "1px solid var(--border)", borderRadius: "var(--r-md)" }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Lokal üben</div>
-          <div className="dim" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>
-            Du kannst eigene Vokabeln hochladen und lokal üben – unabhängig von deiner Klasse.
-            {!inClass && " Diese Fortschritte werden nicht in die Rangliste eingetragen."}
+        {totalWords > 0 && !hasLists && showLists && (
+          <div className="dim" style={{ fontSize: 13, lineHeight: 1.5, marginTop: 14 }}>
+            Sobald dir eine Liste zugewiesen wird, erscheint sie hier.
           </div>
-          <button className="btn btn-ghost" style={{ width: "100%", fontSize: 15 }}
-            onClick={() => go("home")}>
-            Eigene Vokabeln nutzen
-          </button>
-        </div>
+        )}
+        {!showLists && (
+          <div className="dim" style={{ fontSize: 13, lineHeight: 1.5, marginTop: 14 }}>
+            Zugewiesene Listen sind Englisch. Wechsle in den Einstellungen die Sprache, um sie zu üben.
+          </div>
+        )}
       </div>
     </div>
   );

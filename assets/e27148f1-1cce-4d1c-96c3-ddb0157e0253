@@ -214,11 +214,36 @@ function loadVocabulary(lang = ACTIVE_LANGUAGE) {
   } catch (e) {}
   return [];
 }
+// Zugewiesene Listen haben noch keine Sprachangabe und gelten als Englisch.
+const ASSIGNED_LISTS_KEY = "vt_assigned_lists";
+const ASSIGNED_LISTS_LANG = "en";
+function vocabWordKey(word) {
+  return String(word || "").toLowerCase().trim().replace(/\s+/g, " ").replace(/[.!?,]$/, "");
+}
+function readAssignedLists() {
+  try { return JSON.parse(localStorage.getItem(ASSIGNED_LISTS_KEY)) || []; } catch (e) { return []; }
+}
+function activeAssignedList(lang = ACTIVE_LANGUAGE) {
+  if (normalizeLang(lang) !== ASSIGNED_LISTS_LANG) return null;
+  let active = null;
+  try { active = JSON.parse(localStorage.getItem("vt_active_list")); } catch (e) {}
+  return active ? readAssignedLists().find(l => l.id === active.id) || null : null;
+}
+function selectAssignedList(listId) {
+  const list = listId ? readAssignedLists().find(l => l.id === listId) : null;
+  if (list) localStorage.setItem("vt_active_list", JSON.stringify({ id: list.id, name: list.name }));
+  else localStorage.removeItem("vt_active_list");
+  refreshVocabulary(ACTIVE_LANGUAGE);
+}
 function refreshVocabulary(lang = ACTIVE_LANGUAGE) {
   ACTIVE_LANGUAGE = normalizeLang(lang);
-  VOCAB = loadVocabulary(ACTIVE_LANGUAGE);
+  const all = loadVocabulary(ACTIVE_LANGUAGE);
+  const list = activeAssignedList(ACTIVE_LANGUAGE);
+  const keys = list ? new Set(list.keys) : null;
+  const filtered = keys ? all.filter(w => keys.has(vocabWordKey(w.en))) : all;
+  VOCAB = filtered.length ? filtered : all;
   TOTAL_WORDS = VOCAB.length;
-  byId = Object.fromEntries(VOCAB.map(w => [w.id, w]));
+  byId = Object.fromEntries(all.map(w => [w.id, w]));
   Object.assign(window, { VOCAB, TOTAL_WORDS, byId });
 }
 function setActiveLanguage(lang) {
@@ -715,6 +740,7 @@ Object.assign(window, {
   buildSession, buildTest, makeQuestion, applyResult, finishSession,
   makeVerbQuestion, buildVerbSession,
   pick, todayStr,
+  vocabWordKey, readAssignedLists, activeAssignedList, selectAssignedList, loadVocabulary,
   weeklyActivity, relativeDate, exportParentSnapshot, makeParentShareUrl,
 });
 

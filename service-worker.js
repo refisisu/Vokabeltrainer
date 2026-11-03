@@ -1,4 +1,4 @@
-const CACHE_NAME = "vt-cache-v13";
+const CACHE_NAME = "vt-cache-v14";
 
 // Nur wirklich statische Assets (Fonts, Icons) → Cache-First
 const STATIC_ASSETS = [
@@ -47,6 +47,8 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  // Datenbank und Anmeldung nie zwischenspeichern, sonst kommen neue Listen und Lernstände nicht an
+  if (new URL(event.request.url).hostname.endsWith(".supabase.co")) return;
 
   if (isNetworkFirst(event.request.url)) {
     // Network-First: immer frisch vom Server, Cache als Fallback (offline)

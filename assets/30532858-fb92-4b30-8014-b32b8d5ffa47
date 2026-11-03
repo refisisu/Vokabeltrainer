@@ -213,7 +213,7 @@ function Home({ state, go, onOpenTheme, vocUser }) {
         <TileBtn icon="trophy" title="Bestenliste" sub="Letzte Sessions" onClick={() => go("leaderboard")} />
         <TileBtn icon="target" title="Eltern" sub="Lernstand ansehen" onClick={() => go("parent")} />
         {vocUser?.role === "student" && (
-          <TileBtn icon="list" title="Meine Listen" sub={activeListName || "Liste wechseln"} onClick={() => go("student-lists")} />
+          <TileBtn icon="list" title="Meine Listen" sub={activeListName || "Alle Wörter"} onClick={() => go("student-lists")} />
         )}
         {vocUser?.role === "teacher" && (
           <TileBtn icon="list" title="Klassen" sub="Listen & Einladungen" onClick={() => go("teacher")} />
@@ -331,10 +331,11 @@ function Diagnose({ result, go, tweaks }) {
 
 /* ---------------- VOKABEL ÜBERSICHT ---------------- */
 function Overview({ state, go }) {
-  const [lvl, setLvl] = useS(1);
+  const [lvl, setLvl] = useS("all");
+  const [sort, setSort] = useS("list");
   const [query, setQuery] = useS("");
   const dist = masteryDistribution(state);
-  let words = VOCAB.filter(w => getLevel(state, w.id) === lvl);
+  let words = lvl === "all" ? VOCAB : VOCAB.filter(w => getLevel(state, w.id) === lvl);
   if (query.trim()) {
     const ql = query.toLowerCase();
     words = VOCAB.filter(w =>
@@ -344,23 +345,43 @@ function Overview({ state, go }) {
       (w.example || "").toLowerCase().includes(ql)
     );
   }
+  if (sort !== "list") {
+    // Noch nicht geübte Wörter stehen immer am Ende, sie haben noch keine Trefferquote
+    const direction = sort === "weak" ? 1 : -1;
+    words = [...words].sort((a, b) => {
+      const ra = accuracy(state, a.id);
+      const rb = accuracy(state, b.id);
+      if (ra === null || rb === null) return (ra === null) - (rb === null);
+      return (ra - rb) * direction;
+    });
+  }
+  const chipStyle = (active) => ({ flex: "0 0 auto", padding: "8px 14px", borderRadius: 99, cursor: "pointer",
+    border: "1px solid var(--border)", fontWeight: 600, fontSize: 13.5, fontFamily: "var(--font-ui)",
+    background: active ? "var(--accent)" : "var(--surface)", color: active ? "#fff" : "var(--text-dim)" });
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <TopBar left={<IconBtn name="back" onClick={() => go("home")} label="Zurück" />} title="Wortschatz" right={<span />} />
       <div style={{ padding: "4px 18px 10px" }}>
         <input className="field" style={{ fontSize: 16, padding: "12px 16px" }} value={query} onChange={e => setQuery(e.target.value)} placeholder="Suchen…" />
       </div>
+      {activeAssignedList() && (
+        <div className="dim" style={{ fontSize: 13, padding: "0 20px 10px" }}>Liste: {activeAssignedList().name}</div>
+      )}
       {!query.trim() && (
         <div style={{ display: "flex", gap: 8, padding: "0 18px 10px", overflowX: "auto", scrollbarWidth: "none" }}>
+          <button onClick={() => setLvl("all")} style={chipStyle(lvl === "all")}>Alle · {TOTAL_WORDS}</button>
           {[1,2,3,4,5].map(i => (
-            <button key={i} onClick={() => setLvl(i)} style={{ flex: "0 0 auto", padding: "8px 14px", borderRadius: 99, cursor: "pointer",
-              border: "1px solid var(--border)", fontWeight: 600, fontSize: 13.5, fontFamily: "var(--font-ui)",
-              background: lvl === i ? "var(--accent)" : "var(--surface)", color: lvl === i ? "#fff" : "var(--text-dim)" }}>
+            <button key={i} onClick={() => setLvl(i)} style={chipStyle(lvl === i)}>
               {["Neu","Geübt","Sicher","Stark","Gemeistert"][i-1]} · {dist[i-1]}
             </button>
           ))}
         </div>
       )}
+      <div style={{ display: "flex", gap: 8, padding: "0 18px 10px", overflowX: "auto", scrollbarWidth: "none" }}>
+        {[["list", "Listenreihenfolge"], ["weak", "Schwächste zuerst"], ["strong", "Beste zuerst"]].map(([id, label]) => (
+          <button key={id} onClick={() => setSort(id)} style={chipStyle(sort === id)}>{label}</button>
+        ))}
+      </div>
       <div className="scroll" style={{ padding: "4px 18px 28px" }}>
         {words.length === 0 && <div className="dim" style={{ textAlign: "center", padding: 40 }}>Keine Wörter hier.</div>}
         <div style={{ display: "grid", gap: 8 }}>
@@ -374,6 +395,14 @@ function Overview({ state, go }) {
                     {[w.pronunciation, w.note, w.example].filter(Boolean).join(" · ")}
                   </div>
                 )}
+                <div className="dim" style={{ fontSize: 12.5, fontWeight: 600, marginTop: 5 }}>
+                  {(() => {
+                    const r = state.leitner[w.id];
+                    const attempts = r ? (r.correct || 0) + (r.wrong || 0) : 0;
+                    if (!attempts) return "Noch nicht geübt";
+                    return r.correct + " von " + attempts + " richtig · " + Math.round(r.correct / attempts * 100) + " %";
+                  })()}
+                </div>
               </div>
               <LevelPill level={getLevel(state, w.id)} small />
             </div>
@@ -685,7 +714,7 @@ function MiniMetric({ value, label }) {
 }
 
 /* ---------------- SETTINGS ---------------- */
-function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
+function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak, onLogout }) {
   const [name, setName] = useS(state.name);
   const [resetText, setResetText] = useS("");
   const csvRef = useR(null);
@@ -766,6 +795,12 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
           </div>
         </Section>
 
+        {onLogout && (
+          <Section title="Konto">
+            <Row label="Abmelden" onClick={onLogout} chevron />
+          </Section>
+        )}
+
         <Section title="Kinder">
           <Row label="Eltern-Dashboard" value="PIN" onClick={() => go("parent")} chevron />
           <Row label="Kind hinzufügen" onClick={() => {
@@ -809,11 +844,14 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
           <div className="dim" style={{ fontSize: 12.5, lineHeight: 1.4, padding: "0 2px 10px" }}>
             CSV: fremdwort, uebersetzung; optional beispiel, hinweis, aussprache.
           </div>
-          <Row label={"Importierte Liste löschen (" + languageShort(state.language) + ")"} onClick={deleteCurrentVocabulary} chevron />
+          {/* Angemeldet käme das Gelöschte beim nächsten Abgleich zurück */}
+          {!onLogout && <Row label={"Importierte Liste löschen (" + languageShort(state.language) + ")"} onClick={deleteCurrentVocabulary} chevron />}
           <Row label="Backup exportieren" onClick={downloadBackup} chevron />
           <Row label="Backup importieren" onClick={() => backupRef.current?.click()} chevron />
           <Row label="Eltern-PIN ändern" onClick={changePin} chevron />
           {msg && <div className="dim" style={{ fontSize: 13.5, lineHeight: 1.45, padding: "8px 2px 14px" }}>{msg}</div>}
+          {!onLogout && (
+            <React.Fragment>
           <div className="dim" style={{ fontSize: 13.5, lineHeight: 1.5, marginBottom: 10 }}>
             Setzt Lernstand, XP, Streak und Bestenliste zurück. Zum Bestätigen <b style={{ color: "var(--text)" }}>reset</b> eintippen.
           </div>
@@ -828,6 +866,8 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak }) {
               color: resetText.trim().toLowerCase() === "reset" ? "#fff" : "var(--text-dim)" }}>
             Alles zurücksetzen
           </button>
+            </React.Fragment>
+          )}
         </Section>
 
         <div className="dim" style={{ textAlign: "center", fontSize: 12, marginTop: 4 }}>Vokabeltrainer · {languageLabel(state.language)} · {TOTAL_WORDS} Wörter · v2</div>
