@@ -207,7 +207,7 @@ function Home({ state, go, onOpenTheme, vocUser }) {
       <div className="vt-home-tiles" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
         <TileBtn icon="stethoscope" title="Test-Modus" sub="Alle Wörter prüfen" onClick={() => go("test")} />
         <TileBtn icon="list" title="Wortschatz" sub="Alle Vokabeln" onClick={() => go("overview")} />
-        {state.language === "en" && (
+        {state.language === "en" && currentVerbs().length > 0 && (
           <TileBtn icon="book" title="Unregelmäßige Verben" sub="Simple Past & Participle" onClick={() => go("verbs")} />
         )}
         <TileBtn icon="trophy" title="Bestenliste" sub="Letzte Sessions" onClick={() => go("leaderboard")} />

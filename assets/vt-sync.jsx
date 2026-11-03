@@ -121,7 +121,7 @@ function syncWriteMeta(meta) {
 }
 
 function syncStashKeys() {
-  return [LS_KEY, LEGACY_LS_KEY, ...LANGUAGES.map(l => VOCAB_KEY(l.id)), "vt_active_list", ASSIGNED_LISTS_KEY];
+  return [LS_KEY, LEGACY_LS_KEY, ...LANGUAGES.map(l => VOCAB_KEY(l.id)), "vt_active_list", ASSIGNED_LISTS_KEY, ASSIGNED_VERBS_KEY];
 }
 
 // Meldet sich ein anderes Konto an, wird der Stand des bisherigen Kontos beiseitegelegt und nicht vermischt.
@@ -272,32 +272,43 @@ async function syncFetchListWords(listId) {
 // Holt die zugewiesenen Listen. Wörter kommen nur dazu, entzogene Listen verschwinden nur aus der Auswahl.
 async function syncFetchAssignedLists(userId) {
   const { data, error } = await window._sb.from("voc_class_members")
-    .select("voc_classes(id, name, voc_class_lists(voc_lists(id, name, voc_words(count))))")
+    .select("voc_classes(id, name, show_builtin_verbs, voc_class_lists(voc_lists(id, name, kind, voc_words(count))))")
     .eq("user_id", userId);
   if (error) return false;
 
-  const cached = Object.fromEntries(readAssignedLists().map(l => [l.id, l]));
+  const cachedVerbs = readAssignedVerbs();
+  const cached = Object.fromEntries([...readAssignedLists(), ...(cachedVerbs.lists || [])].map(l => [l.id, l]));
   const assigned = new Map();
   (data || []).forEach(m => {
     (m.voc_classes?.voc_class_lists || []).forEach(cl => {
       const list = cl.voc_lists;
       if (list && !assigned.has(list.id)) {
-        assigned.set(list.id, { id: list.id, name: list.name, className: m.voc_classes.name, count: list.voc_words?.[0]?.count ?? 0 });
+        assigned.set(list.id, { id: list.id, name: list.name, kind: list.kind, className: m.voc_classes.name, count: list.voc_words?.[0]?.count ?? 0 });
       }
     });
   });
 
   const now = Date.now();
   const lists = [];
+  const verbLists = [];
   const fetched = [];
   for (const list of assigned.values()) {
     const old = cached[list.id];
+    const isVerbs = list.kind === "irregular_verbs";
     if (old && old.count === list.count && now - (old.fetchedAt || 0) < SYNC_LIST_REFRESH_MS) {
-      lists.push({ ...old, name: list.name, className: list.className });
+      (isVerbs ? verbLists : lists).push({ ...old, name: list.name, className: list.className });
       continue;
     }
     const words = await syncFetchListWords(list.id);
     if (!words) return false;
+    if (isVerbs) {
+      const verbs = words
+        .map(w => ({ id: verbIdFor(w.original), en: (w.original || "").trim(), de: (w.translation || "").trim(), forms: parseVerbForms(w.hinweis) }))
+        .filter(v => v.en && v.de && v.forms)
+        .map(({ forms, ...v }) => ({ ...v, ...forms }));
+      verbLists.push({ ...list, verbs, fetchedAt: now });
+      continue;
+    }
     const rows = words
       .map(w => ({
         en: (w.original || "").trim(),
@@ -322,6 +333,11 @@ async function syncFetchAssignedLists(userId) {
   });
   if (added.length) localStorage.setItem(VOCAB_KEY(ASSIGNED_LISTS_LANG), JSON.stringify([...raw, ...added]));
   localStorage.setItem(ASSIGNED_LISTS_KEY, JSON.stringify(lists));
+  const classes = (data || []).map(m => m.voc_classes).filter(Boolean);
+  localStorage.setItem(ASSIGNED_VERBS_KEY, JSON.stringify({
+    lists: verbLists,
+    showBuiltin: !classes.length || classes.some(c => c.show_builtin_verbs !== false),
+  }));
 
   let active = null;
   try { active = JSON.parse(localStorage.getItem("vt_active_list")); } catch (e) {}

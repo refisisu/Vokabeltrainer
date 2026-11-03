@@ -235,6 +235,33 @@ function selectAssignedList(listId) {
   else localStorage.removeItem("vt_active_list");
   refreshVocabulary(ACTIVE_LANGUAGE);
 }
+// Verblisten: Die Formen stehen in der Spalte hinweis, z.B. "simple past: was [wɒz]/were | past participle: been".
+const ASSIGNED_VERBS_KEY = "vt_assigned_verbs";
+function cleanVerbForm(form) {
+  return String(form || "").replace(/\[[^\]]*\]/g, "").replace(/\b(AE|BE):\s*/g, "").replace(/\s*\/\s*/g, "/").trim();
+}
+function parseVerbForms(hint) {
+  const match = String(hint || "").match(/simple past:\s*(.*?)\s*\|\s*past participle:\s*(.*)$/i);
+  if (!match) return null;
+  const pastSimple = cleanVerbForm(match[1]);
+  const pastParticiple = cleanVerbForm(match[2]);
+  return pastSimple && pastParticiple ? { pastSimple, pastParticiple } : null;
+}
+// Gleiche ID wie bei den eingebauten Verben (irr-go), damit der bisherige Lernstand weiter zählt.
+function verbIdFor(word) {
+  return "irr-" + String(word || "").toLowerCase().trim().replace(/^to\s+/, "").replace(/\s+/g, "-");
+}
+function readAssignedVerbs() {
+  try { return JSON.parse(localStorage.getItem(ASSIGNED_VERBS_KEY)) || { lists: [], showBuiltin: true }; }
+  catch (e) { return { lists: [], showBuiltin: true }; }
+}
+function currentVerbs() {
+  const { lists, showBuiltin } = readAssignedVerbs();
+  const byVerbId = new Map();
+  (lists || []).forEach(l => (l.verbs || []).forEach(v => { if (!byVerbId.has(v.id)) byVerbId.set(v.id, v); }));
+  if (byVerbId.size) return [...byVerbId.values()];
+  return showBuiltin === false ? [] : IRREGULAR_VERBS;
+}
 function refreshVocabulary(lang = ACTIVE_LANGUAGE) {
   ACTIVE_LANGUAGE = normalizeLang(lang);
   const all = loadVocabulary(ACTIVE_LANGUAGE);
@@ -244,6 +271,7 @@ function refreshVocabulary(lang = ACTIVE_LANGUAGE) {
   VOCAB = filtered.length ? filtered : all;
   TOTAL_WORDS = VOCAB.length;
   byId = Object.fromEntries(all.map(w => [w.id, w]));
+  currentVerbs().forEach(v => { verbsById[v.id] = v; });
   Object.assign(window, { VOCAB, TOTAL_WORDS, byId });
 }
 function setActiveLanguage(lang) {
@@ -609,8 +637,9 @@ function makeVerbQuestion(verb) {
   return { kind: "verbform", word: verb, correctPast: verb.pastSimple, correctParticiple: verb.pastParticiple };
 }
 function buildVerbSession(state, max = 10) {
-  const sorted = [...IRREGULAR_VERBS].sort((a, b) => getLevel(state, a.id) - getLevel(state, b.id) || Math.random() - 0.5);
-  return sorted.slice(0, Math.min(max, IRREGULAR_VERBS.length)).map(makeVerbQuestion);
+  const verbs = currentVerbs();
+  const sorted = [...verbs].sort((a, b) => getLevel(state, a.id) - getLevel(state, b.id) || Math.random() - 0.5);
+  return sorted.slice(0, Math.min(max, verbs.length)).map(makeVerbQuestion);
 }
 
 // Test mode: every word once, MC only, no leitner change.
@@ -740,7 +769,7 @@ Object.assign(window, {
   buildSession, buildTest, makeQuestion, applyResult, finishSession,
   makeVerbQuestion, buildVerbSession,
   pick, todayStr,
-  vocabWordKey, readAssignedLists, activeAssignedList, selectAssignedList, loadVocabulary,
+  parseVerbForms, verbIdFor, currentVerbs, vocabWordKey, readAssignedLists, activeAssignedList, selectAssignedList, loadVocabulary,
   weeklyActivity, relativeDate, exportParentSnapshot, makeParentShareUrl,
 });
 

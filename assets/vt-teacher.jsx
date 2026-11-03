@@ -44,6 +44,11 @@ function parseWords(raw) {
   }).filter(w => w.original && w.translation);
 }
 
+function listSizeLabel(list) {
+  const count = list.voc_words?.[0]?.count ?? 0;
+  return list.kind === "irregular_verbs" ? `${count} unregelmäßige Verben` : `${count} Wörter`;
+}
+
 /* ── Leere-Zustand-Komponente ── */
 function EmptyState({ icon, title, sub, action }) {
   return (
@@ -70,7 +75,7 @@ function ClassListView({ session, onSelectClass, onNewClass }) {
   useTE(() => {
     window._sb
       .from("voc_classes")
-      .select("id, name, join_code, created_at")
+      .select("id, name, join_code, created_at, show_builtin_verbs")
       .eq("teacher_id", session.user.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => setClasses(data || []));
@@ -171,7 +176,7 @@ function ListLibraryView({ session, onNewList, onEditList }) {
   const load = useTC(() => {
     window._sb
       .from("voc_lists")
-      .select("id, name, created_at, voc_words(count)")
+      .select("id, name, kind, created_at, voc_words(count)")
       .eq("teacher_id", session.user.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => setLists(data || []));
@@ -212,7 +217,7 @@ function ListLibraryView({ session, onNewList, onEditList }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 16 }}>{list.name}</div>
                   <div className="dim" style={{ fontSize: 13 }}>
-                    {list.voc_words?.[0]?.count ?? 0} Wörter
+                    {listSizeLabel(list)}
                   </div>
                 </div>
               </button>
@@ -237,7 +242,7 @@ function AssignListModal({ cls, session, onClose, onAssigned }) {
 
   useTE(() => {
     Promise.all([
-      window._sb.from("voc_lists").select("id, name, voc_words(count)")
+      window._sb.from("voc_lists").select("id, name, kind, voc_words(count)")
         .eq("teacher_id", session.user.id).order("created_at", { ascending: false }),
       window._sb.from("voc_class_lists").select("list_id").eq("class_id", cls.id),
     ]).then(([{ data: all }, { data: assigned }]) => {
@@ -297,7 +302,7 @@ function AssignListModal({ cls, session, onClose, onAssigned }) {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 15 }}>{list.name}</div>
                     <div className="dim" style={{ fontSize: 13 }}>
-                      {list.voc_words?.[0]?.count ?? 0} Wörter
+                      {listSizeLabel(list)}
                     </div>
                   </div>
                   {assigning === list.id
@@ -525,12 +530,23 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
   const [showAssign, setShowAssign] = useT(false);
   const [showAddStudent, setShowAddStudent] = useT(false);
   const [showBulkInvite, setShowBulkInvite] = useT(false);
+  const [showBuiltinVerbs, setShowBuiltinVerbs] = useT(cls.show_builtin_verbs !== false);
+  const [verbError, setVerbError] = useT(null);
   const link = inviteLink(cls.join_code);
+
+  const toggleBuiltinVerbs = async () => {
+    const next = !showBuiltinVerbs;
+    setShowBuiltinVerbs(next);
+    setVerbError(null);
+    const { error } = await window._sb.from("voc_classes").update({ show_builtin_verbs: next }).eq("id", cls.id);
+    if (error) { setShowBuiltinVerbs(!next); setVerbError(error.message); return; }
+    cls.show_builtin_verbs = next;
+  };
 
   const loadLists = useTC(() => {
     window._sb
       .from("voc_class_lists")
-      .select("list_id, assigned_at, voc_lists(id, name, voc_words(count))")
+      .select("list_id, assigned_at, voc_lists(id, name, kind, voc_words(count))")
       .eq("class_id", cls.id)
       .order("assigned_at", { ascending: false })
       .then(({ data }) => setLists((data || []).map(r => r.voc_lists).filter(Boolean)));
@@ -596,6 +612,18 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
           </button>
         </div>
 
+        {/* Eingebaute Verben */}
+        <label className="card" style={{ padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+          <input type="checkbox" checked={showBuiltinVerbs} onChange={toggleBuiltinVerbs} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Eingebaute unregelmäßige Verben zeigen</div>
+            <div className="dim" style={{ fontSize: 13, lineHeight: 1.4 }}>
+              Gilt nur ohne eigene Verbliste. Ist eine zugewiesen, wird nur diese geübt.
+            </div>
+            {verbError && <div style={{ color: "var(--wrong)", fontSize: 13, marginTop: 4 }}>{verbError}</div>}
+          </div>
+        </label>
+
         {/* Tabs */}
         <div style={{ display: "flex", background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: 3, marginBottom: 16 }}>
           {[["lists", `Listen${lists ? ` (${lists.length})` : ""}`], ["members", `Mitglieder${members ? ` (${members.length})` : ""}`]].map(([t, label]) => (
@@ -639,7 +667,7 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 16 }}>{list.name}</div>
                         <div className="dim" style={{ fontSize: 13 }}>
-                          {list.voc_words?.[0]?.count ?? 0} Wörter
+                          {listSizeLabel(list)}
                         </div>
                       </div>
                     </button>
@@ -701,6 +729,8 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
 /* ── Listen-Editor: Wörter einfügen oder CSV hochladen ── */
 function ListEditorView({ cls, list, session, onBack, onSaved }) {
   const [listName, setListName] = useT(list?.name || "");
+  const [kind, setKind] = useT(list?.kind || "vocab");
+  const [existingWords, setExistingWords] = useT(null);
   const [raw, setRaw] = useT("");
   const [preview, setPreview] = useT([]);
   const [loading, setLoading] = useT(false);
@@ -709,7 +739,24 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
   const fileRef = useTR();
   const isNew = !list;
 
+  const isVerbList = kind === "irregular_verbs";
+  // Verbzeilen ohne lesbare Formen werden nicht gespeichert, die Vorschau meldet sie
+  const validPreview = isVerbList ? preview.filter(w => parseVerbForms(w.hinweis)) : preview;
+  const invalidCount = preview.length - validPreview.length;
+
   useTE(() => { setPreview(parseWords(raw)); }, [raw]);
+
+  useTE(() => {
+    if (!list) return;
+    window._sb.from("voc_words")
+      .select("id, original, translation, hinweis")
+      .eq("list_id", list.id)
+      .order("original")
+      .then(({ data, error }) => {
+        if (error) setError(error.message);
+        setExistingWords(data || []);
+      });
+  }, [list?.id]);
 
   const handleFile = (e) => {
     const file = e.target.files[0];
@@ -737,7 +784,7 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
     if (isNew) {
       const { data, error } = await window._sb
         .from("voc_lists")
-        .insert({ name: listName.trim(), teacher_id: session.user.id, created_by: session.user.id })
+        .insert({ name: listName.trim(), kind, teacher_id: session.user.id, created_by: session.user.id })
         .select()
         .single();
       if (error) { setError(error.message); setLoading(false); return; }
@@ -753,10 +800,10 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
       await window._sb.from("voc_lists").update({ name: listName.trim() }).eq("id", listId);
     }
 
-    if (preview.length > 0) {
+    if (validPreview.length > 0) {
       const { data, error: wordErr } = await window._sb.rpc("voc_insert_words", {
         p_list_id: listId,
-        p_words: preview,
+        p_words: validPreview,
       });
       if (wordErr) { setError(wordErr.message); setLoading(false); return; }
       setResult(data);
@@ -784,10 +831,50 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
 
       <div className="scroll" style={{ padding: "0 18px 32px" }}>
         <input className="field" type="text" placeholder="Name der Liste" value={listName}
-          onChange={e => setListName(e.target.value)} style={{ marginBottom: 16 }} maxLength={80} />
+          onChange={e => setListName(e.target.value)} style={{ marginBottom: preview.length > 0 && !listName.trim() ? 6 : 16 }} maxLength={80} />
+        {preview.length > 0 && !listName.trim() && (
+          <div style={{ color: "var(--wrong)", fontSize: 13, marginBottom: 16 }}>Bitte gib der Liste einen Namen, dann kannst du sie speichern.</div>
+        )}
+
+        <div className="eyebrow" style={{ marginBottom: 8 }}>Art der Liste</div>
+        {isNew ? (
+          <div style={{ display: "flex", background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: 3, marginBottom: 16 }}>
+            {[["vocab", "Vokabeln"], ["irregular_verbs", "Unregelmäßige Verben"]].map(([id, label]) => (
+              <button key={id} onClick={() => setKind(id)}
+                style={{ flex: 1, padding: "10px 8px", border: "none", borderRadius: "calc(var(--r-md) - 3px)",
+                  fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 14, cursor: "pointer",
+                  background: kind === id ? "var(--surface)" : "transparent",
+                  color: kind === id ? "var(--text)" : "var(--text-dim)" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="dim" style={{ fontSize: 14, marginBottom: 16 }}>{isVerbList ? "Unregelmäßige Verben" : "Vokabeln"}</div>
+        )}
+
+        {!isNew && (
+          <div style={{ marginBottom: 16 }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>
+              Vorhandene Einträge{existingWords ? ` (${existingWords.length})` : ""}
+            </div>
+            {existingWords === null ? <Spinner /> : existingWords.length === 0 ? (
+              <div className="dim" style={{ fontSize: 14 }}>Noch keine Einträge.</div>
+            ) : (
+              <div className="card" style={{ maxHeight: 280, overflowY: "auto" }}>
+                {existingWords.map(w => (
+                  <div key={w.id} style={{ display: "flex", gap: 12, padding: "9px 14px", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
+                    <span style={{ flex: 1, fontWeight: 500 }}>{w.original}</span>
+                    <span style={{ flex: 1, color: "var(--text-dim)" }}>{w.translation}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <div className="eyebrow">Wörter einfügen</div>
+          <div className="eyebrow">{isNew ? "Einträge einfügen" : "Einträge hinzufügen"}</div>
           <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}
             onClick={() => fileRef.current?.click()}>
             CSV hochladen
@@ -796,7 +883,9 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
         </div>
 
         <div className="dim" style={{ fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
-          Ein Wortpaar pro Zeile: <code>Hund;chien</code> oder <code>Hund - chien</code>
+          {isVerbList
+            ? <React.Fragment>Eine Zeile pro Verb: <code>go;gehen;;simple past: went | past participle: gone;</code></React.Fragment>
+            : <React.Fragment>Ein Wortpaar pro Zeile: <code>Hund;chien</code> oder <code>Hund - chien</code></React.Fragment>}
         </div>
 
         <textarea className="field" rows={8}
@@ -807,7 +896,9 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
         {preview.length > 0 && (
           <div style={{ marginTop: 14 }}>
             <div className="eyebrow" style={{ marginBottom: 8 }}>
-              Vorschau — {preview.length} Wortpaar{preview.length !== 1 ? "e" : ""}
+              {isVerbList
+                ? `Vorschau — ${validPreview.length} Verb${validPreview.length !== 1 ? "en" : ""}`
+                : `Vorschau — ${preview.length} Wortpaar${preview.length !== 1 ? "e" : ""}`}
             </div>
             <div className="card" style={{ overflow: "hidden" }}>
               {preview.slice(0, 8).map((w, i) => (
@@ -819,7 +910,13 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
                     {w.aussprache && <span style={{ color: "var(--text-dim)", fontSize: 13, fontStyle: "italic" }}>{w.aussprache}</span>}
                   </div>
                   {w.beispiel && <div style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 2 }}>📖 {w.beispiel}</div>}
-                  {w.hinweis && <div style={{ fontSize: 12, color: "var(--text-dim)", opacity: 0.7 }}>💡 {w.hinweis}</div>}
+                  {isVerbList && parseVerbForms(w.hinweis) ? (
+                    <div style={{ fontSize: 13, color: "var(--text-dim)" }}>
+                      {parseVerbForms(w.hinweis).pastSimple} · {parseVerbForms(w.hinweis).pastParticiple}
+                    </div>
+                  ) : isVerbList ? (
+                    <div style={{ fontSize: 13, color: "var(--wrong)" }}>Formen nicht lesbar, wird nicht gespeichert</div>
+                  ) : w.hinweis && <div style={{ fontSize: 12, color: "var(--text-dim)", opacity: 0.7 }}>💡 {w.hinweis}</div>}
                 </div>
               ))}
               {preview.length > 8 && (
@@ -828,6 +925,13 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {isVerbList && invalidCount > 0 && (
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--wrong-soft)",
+            color: "var(--wrong)", borderRadius: "var(--r-md)", fontSize: 14 }}>
+            {invalidCount === 1 ? "1 Zeile ohne lesbare Verbformen wird" : `${invalidCount} Zeilen ohne lesbare Verbformen werden`} nicht gespeichert.
           </div>
         )}
 
