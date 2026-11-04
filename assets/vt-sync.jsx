@@ -121,7 +121,7 @@ function syncWriteMeta(meta) {
 }
 
 function syncStashKeys() {
-  return [LS_KEY, LEGACY_LS_KEY, ...LANGUAGES.map(l => VOCAB_KEY(l.id)), "vt_active_list", ASSIGNED_LISTS_KEY, ASSIGNED_VERBS_KEY, ASSIGNED_GEO_KEY];
+  return [LS_KEY, LEGACY_LS_KEY, ...LANGUAGES.map(l => VOCAB_KEY(l.id)), "vt_active_list", ASSIGNED_LISTS_KEY, ASSIGNED_VERBS_KEY, ASSIGNED_GEO_KEY, HIDE_UNLISTED_KEY];
 }
 
 // Meldet sich ein anderes Konto an, wird der Stand des bisherigen Kontos beiseitegelegt und nicht vermischt.
@@ -273,7 +273,7 @@ async function syncFetchListWords(listId) {
 // Holt die zugewiesenen Listen. Wörter kommen nur dazu, entzogene Listen verschwinden nur aus der Auswahl.
 async function syncFetchAssignedLists(userId) {
   const { data, error } = await window._sb.from("voc_class_members")
-    .select("voc_classes(id, name, show_builtin_verbs, voc_class_lists(voc_lists(id, name, kind, voc_words(count))))")
+    .select("voc_classes(id, name, show_builtin_verbs, hide_unlisted_words, voc_class_lists(voc_lists(id, name, kind, voc_words(count))))")
     .eq("user_id", userId);
   if (error) return false;
 
@@ -353,6 +353,8 @@ async function syncFetchAssignedLists(userId) {
     }
   }
   const classes = (data || []).map(m => m.voc_classes).filter(Boolean);
+  if (classes.length && classes.every(c => c.hide_unlisted_words === true)) localStorage.setItem(HIDE_UNLISTED_KEY, "1");
+  else localStorage.removeItem(HIDE_UNLISTED_KEY);
   localStorage.setItem(ASSIGNED_VERBS_KEY, JSON.stringify({
     lists: verbLists,
     showBuiltin: !classes.length || classes.some(c => c.show_builtin_verbs !== false),

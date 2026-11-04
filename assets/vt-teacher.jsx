@@ -76,7 +76,7 @@ function ClassListView({ session, onSelectClass, onNewClass }) {
   useTE(() => {
     window._sb
       .from("voc_classes")
-      .select("id, name, join_code, created_at, show_builtin_verbs")
+      .select("id, name, join_code, created_at, show_builtin_verbs, hide_unlisted_words")
       .eq("teacher_id", session.user.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => setClasses(data || []));
@@ -533,7 +533,17 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
   const [showBulkInvite, setShowBulkInvite] = useT(false);
   const [showBuiltinVerbs, setShowBuiltinVerbs] = useT(cls.show_builtin_verbs !== false);
   const [verbError, setVerbError] = useT(null);
+  const [hideUnlisted, setHideUnlisted] = useT(cls.hide_unlisted_words === true);
   const link = inviteLink(cls.join_code);
+
+  const toggleHideUnlisted = async () => {
+    const next = !hideUnlisted;
+    setHideUnlisted(next);
+    setVerbError(null);
+    const { error } = await window._sb.from("voc_classes").update({ hide_unlisted_words: next }).eq("id", cls.id);
+    if (error) { setHideUnlisted(!next); setVerbError(error.message); return; }
+    cls.hide_unlisted_words = next;
+  };
 
   const toggleBuiltinVerbs = async () => {
     const next = !showBuiltinVerbs;
@@ -612,6 +622,17 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
             {copied ? "✓ Kopiert" : "Kopieren"}
           </button>
         </div>
+
+        {/* Wörter außerhalb der Listen */}
+        <label className="card" style={{ padding: "12px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+          <input type="checkbox" checked={hideUnlisted} onChange={toggleHideUnlisted} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Nur Wörter aus zugewiesenen Listen üben</div>
+            <div className="dim" style={{ fontSize: 13, lineHeight: 1.4 }}>
+              Andere englische Wörter werden ausgeblendet, bleiben aber samt Lernstand gespeichert.
+            </div>
+          </div>
+        </label>
 
         {/* Eingebaute Verben */}
         <label className="card" style={{ padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>

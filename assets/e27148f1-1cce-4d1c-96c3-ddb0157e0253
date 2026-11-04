@@ -242,6 +242,19 @@ function vocabWordKey(word) {
 function readAssignedLists() {
   try { return JSON.parse(localStorage.getItem(ASSIGNED_LISTS_KEY)) || []; } catch (e) { return []; }
 }
+// Ausgeblendete Wörter bleiben gespeichert und werden weiter abgeglichen, nur die Abfrage lässt sie aus.
+const HIDE_UNLISTED_KEY = "vt_hide_unlisted";
+function visibleVocabulary(lang = ACTIVE_LANGUAGE) {
+  const active = normalizeLang(lang);
+  const all = loadVocabulary(active);
+  if (active !== ASSIGNED_LISTS_LANG) return all;
+  let hide = false;
+  try { hide = localStorage.getItem(HIDE_UNLISTED_KEY) === "1"; } catch (e) {}
+  if (!hide) return all;
+  const keys = new Set(readAssignedLists().flatMap(l => l.keys || []));
+  const visible = all.filter(w => keys.has(vocabWordKey(w.en)));
+  return visible.length ? visible : all;
+}
 function activeAssignedList(lang = ACTIVE_LANGUAGE) {
   if (normalizeLang(lang) !== ASSIGNED_LISTS_LANG) return null;
   let active = null;
@@ -286,8 +299,9 @@ function refreshVocabulary(lang = ACTIVE_LANGUAGE) {
   const all = loadVocabulary(ACTIVE_LANGUAGE);
   const list = activeAssignedList(ACTIVE_LANGUAGE);
   const keys = list ? new Set(list.keys) : null;
-  const filtered = keys ? all.filter(w => keys.has(vocabWordKey(w.en))) : all;
-  VOCAB = filtered.length ? filtered : all;
+  const visible = visibleVocabulary(ACTIVE_LANGUAGE);
+  const filtered = keys ? visible.filter(w => keys.has(vocabWordKey(w.en))) : visible;
+  VOCAB = filtered.length ? filtered : visible;
   TOTAL_WORDS = VOCAB.length;
   byId = Object.fromEntries(all.map(w => [w.id, w]));
   currentVerbs().forEach(v => { verbsById[v.id] = v; });
@@ -399,7 +413,7 @@ function progressForChild(child, lang = ACTIVE_LANGUAGE) {
 }
 function childSummary(child, lang = ACTIVE_LANGUAGE) {
   const progress = progressForChild(child, lang);
-  const words = loadVocabulary(lang);
+  const words = visibleVocabulary(lang);
   const totalWords = words.length;
   const levels = [0, 0, 0, 0, 0];
   words.forEach(w => {
@@ -756,7 +770,7 @@ function exportParentSnapshot() {
       const progress = {};
       langs.forEach(lang => {
         const prog = { ...emptyProgress(), ...(child.progress?.[lang] || {}) };
-        const words = loadVocabulary(lang);
+        const words = visibleVocabulary(lang);
         if (prog.sessionsCount === 0 && !words.length) return;
         const levels = [0, 0, 0, 0, 0];
         words.forEach(w => { levels[Math.max(0, Math.min(4, (prog.leitner?.[w.id]?.level || 1) - 1))]++; });
@@ -806,7 +820,7 @@ Object.assign(window, {
   buildSession, buildTest, makeQuestion, applyResult, finishSession,
   makeVerbQuestion, buildVerbSession,
   pick, todayStr,
-  GEO_LANG, hasGeography, availableLanguages, parseVerbForms, verbIdFor, currentVerbs, vocabWordKey, readAssignedLists, activeAssignedList, selectAssignedList, loadVocabulary,
+  visibleVocabulary, GEO_LANG, hasGeography, availableLanguages, parseVerbForms, verbIdFor, currentVerbs, vocabWordKey, readAssignedLists, activeAssignedList, selectAssignedList, loadVocabulary,
   weeklyActivity, relativeDate, exportParentSnapshot, makeParentShareUrl,
 });
 

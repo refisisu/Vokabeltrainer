@@ -4,7 +4,7 @@ function StudentListPicker({ session, go, inClass }) {
   const showLists = ACTIVE_LANGUAGE === ASSIGNED_LISTS_LANG;
   const lists = showLists ? readAssignedLists() : [];
   const active = activeAssignedList();
-  const totalWords = loadVocabulary(ACTIVE_LANGUAGE).length;
+  const totalWords = visibleVocabulary(ACTIVE_LANGUAGE).length;
   const hasLists = lists.length > 0;
 
   const choose = (listId) => {
