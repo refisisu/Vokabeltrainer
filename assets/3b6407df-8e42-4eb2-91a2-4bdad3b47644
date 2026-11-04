@@ -42,6 +42,7 @@ function currentWorld() {
 const MASCOT_BY_WORLD = { city: "sprout", forest: "fox", ocean: "octopus", space: null };
 
 function Voki({ mood = "idle", size = 96, float = false, world }) {
+  if (readDesign() === "heft") return null; // Das Schulheft-Design kommt ohne Maskottchen aus
   const w = world || currentWorld();
   const kind = MASCOT_BY_WORLD[w];
   if (!kind) return null; // mascot-free Farbwelt (Space)
@@ -155,7 +156,9 @@ function StatChip({ icon, value, color, label }) {
   );
 }
 
+const HEFT_LEVEL_CLASS = ["vt-lv-neu", "vt-lv-geuebt", "vt-lv-sicher", "vt-lv-stark", "vt-lv-gemeistert"];
 function LevelPill({ level, small }) {
+  if (readDesign() === "heft") return <span className={"vt-lvglyph " + HEFT_LEVEL_CLASS[level - 1]} title={["Neu", "Geübt", "Sicher", "Stark", "Gemeistert"][level - 1]} />;
   const labels = ["Neu", "Geübt", "Sicher", "Stark", "Gemeistert"];
   const cols = ["var(--text-dim)", "var(--accent-2)", "var(--accent)", "var(--primary)", "var(--correct)"];
   return (
@@ -177,8 +180,8 @@ function ProgressBar({ value, total, accent, label }) {
   const pct = total ? Math.min(100, (value / total) * 100) : 0;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <div style={{ flex: 1, height: 12, background: "var(--surface-3)", borderRadius: 99, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: pct + "%", borderRadius: 99,
+      <div className="vt-heft-progress" style={{ flex: 1, height: 12, background: "var(--surface-3)", borderRadius: 99, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: pct + "%", borderRadius: "inherit",
           background: accent || "var(--accent)", transition: "width 320ms var(--ease)" }} />
       </div>
       <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 14, color: "var(--text-dim)", minWidth: 42, textAlign: "right" }}>
@@ -255,7 +258,7 @@ function TopBar({ left, title, right }) {
 }
 function IconBtn({ name, onClick, label }) {
   return (
-    <button onClick={onClick} aria-label={label} style={{ width: 44, height: 44, borderRadius: 14,
+    <button className="vt-heft-iconbtn" onClick={onClick} aria-label={label} style={{ width: 44, height: 44, borderRadius: 14,
       border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)",
       display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
       <Icon name={name} size={21} />

@@ -1,7 +1,7 @@
 /* Vokabeltrainer — überträgt das neue Design auf die bestehenden Klassen aus index.html. Gilt nur im neuen Design. */
 body[data-design="heft"]{--on-accent:var(--paper);}
 /* Knöpfe ohne eigene Textfarbe erben die Tinte, sonst bleibt Text im Dunkelmodus schwarz */
-body[data-design="heft"] button{color:inherit;}
+body[data-design="heft"] button:not(.vt-btn):not(.vt-iconbtn){color:inherit;}
 
 body[data-design="heft"] #stage{background:var(--paper-sunk);}
 body[data-design="heft"] #device{box-shadow:none;}
@@ -31,3 +31,44 @@ body[data-design="heft"] .card{border:var(--border-ui) solid var(--ink);border-r
 
 body[data-design="heft"] .field{font-weight:600;border:var(--border-ui) solid var(--ink);border-radius:var(--radius-md);background:var(--paper-raised);}
 body[data-design="heft"] .field:focus{border-color:var(--ink);box-shadow:none;outline:3px solid var(--focus);outline-offset:2px;}
+
+/* ---------- Heftrand auf allen Seiten ---------- */
+body[data-design="heft"] #device::before{content:"";position:absolute;left:var(--margin-inset);top:0;bottom:0;width:2px;background:var(--margin);z-index:1;pointer-events:none;}
+body[data-design="heft"] #root{padding-left:calc(var(--content-inset) - 18px);}
+body[data-design="heft"] .vt-heft-feedback{margin-left:calc(18px - var(--content-inset));padding-left:var(--content-inset) !important;}
+
+/* ---------- Startseite ---------- */
+body[data-design="heft"] .vt-heft-home{padding:calc(24px + env(safe-area-inset-top)) 20px 40px 18px;}
+.vt-heft-top{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-3);}
+.vt-heft-top .vt-iconbtn{cursor:pointer;flex:none;}
+.vt-heft-top .t-display-name{margin-top:2px;overflow-wrap:anywhere;}
+.vt-heft-stats{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;}
+.vt-heft-hero{margin-top:22px;padding-bottom:22px;}
+.vt-heft-hero .vt-sheet__title{margin-top:8px;}
+.vt-heft-hero-text{max-width:260px;}
+.vt-heft-words,.vt-heft-toc{margin-top:30px;}
+.vt-heft-toc .vt-sec{margin-bottom:4px;}
+body[data-design="heft"] .vt-toc__row{appearance:none;width:100%;background:none;border-top:0;border-left:0;border-right:0;text-align:left;font:inherit;cursor:pointer;}
+.vt-toc__row .vt-toc__n--in{align-self:baseline;}
+@media (min-width:700px), (orientation:landscape) and (max-height:560px){
+  body[data-design="heft"] .vt-heft-home{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr);gap:0 28px;align-content:start;}
+  .vt-heft-top,.vt-heft-stats,.vt-heft-hero{grid-column:1;}
+  .vt-heft-words{grid-column:1;}
+  .vt-heft-toc{grid-column:2;grid-row:1 / span 5;margin-top:0;}
+}
+
+/* ---------- Listen und Abschnitte ---------- */
+body[data-design="heft"] .vt-heft-row{background:none;border:0;border-bottom:var(--border-hair) dashed var(--line-soft);border-radius:0;box-shadow:none;padding-left:0 !important;padding-right:0 !important;}
+body[data-design="heft"] .vt-heft-section{background:none;border:0;box-shadow:none;padding:0 !important;}
+body[data-design="heft"] .vt-heft-sechead{font:800 22px/26px var(--font-display);letter-spacing:0;text-transform:none;color:var(--ink);border-bottom:var(--border-ui) solid var(--ink);padding-bottom:6px;margin-left:0 !important;margin-bottom:4px !important;}
+body[data-design="heft"] .vt-heft-setting{border-bottom:var(--border-hair) dashed var(--line-soft) !important;padding:13px 0 !important;}
+body[data-design="heft"] .vt-heft-setting:active{background:var(--paper-sunk);}
+
+/* ---------- Fortschritt ---------- */
+body[data-design="heft"] .vt-heft-progress{height:16px !important;border:var(--border-ui) solid var(--ink);border-radius:var(--radius-xs) !important;background:var(--paper-raised) !important;}
+body[data-design="heft"] .vt-heft-progress>div{background:var(--correct) !important;}
+
+/* ---------- Kleine Bedienelemente ---------- */
+body[data-design="heft"] .vt-heft-iconbtn{border:var(--border-ui) solid var(--ink) !important;border-radius:var(--radius-md) !important;background:var(--paper-raised) !important;color:var(--ink) !important;box-shadow:var(--shadow-press);}
+body[data-design="heft"] .vt-heft-iconbtn:active{transform:translate(3px,3px);box-shadow:var(--shadow-none);}
+body[data-design="heft"] .vt-heft-filter{border:var(--border-ui) solid var(--ink) !important;border-radius:var(--radius-xs) !important;}

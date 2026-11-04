@@ -306,7 +306,7 @@ function FeedbackBar({ status, correct, xp, info, typo, onNext, tweaks }) {
   }, [onNext]);
   const showConfetti = ok && status === "first" && tweaks.feedbackStyle === "konfetti";
   return (
-    <div className="pop" style={{ position: "relative", flexShrink: 0, zIndex: 20,
+    <div className="pop vt-heft-feedback" style={{ position: "relative", flexShrink: 0, zIndex: 20,
       background: ok ? "var(--correct-soft)" : "var(--wrong-soft)",
       borderTop: `2px solid ${ok ? "var(--correct)" : "var(--wrong)"}`,
       borderRadius: "var(--r-lg) var(--r-lg) 0 0", padding: "18px 20px calc(18px + env(safe-area-inset-bottom))" }}>
@@ -377,7 +377,7 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
   return (
     <div className="vt-quiz" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div className="vt-quiz-top" style={{ padding: "16px 18px 10px", display: "flex", alignItems: "center", gap: 12 }}>
-        <button onClick={onExit} aria-label="Beenden" style={{ width: 38, height: 38, borderRadius: 12, border: "none",
+        <button className="vt-heft-iconbtn" onClick={onExit} aria-label="Beenden" style={{ width: 38, height: 38, borderRadius: 12, border: "none",
           background: "var(--surface-2)", color: "var(--text-dim)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
           <Icon name="x" size={20} />
         </button>

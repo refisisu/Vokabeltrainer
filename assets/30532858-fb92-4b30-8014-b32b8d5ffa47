@@ -186,6 +186,83 @@ function MasteryOverview({ state }) {
   );
 }
 
+/* ---------------- HOME: SCHULHEFT ---------------- */
+function HomeHeft({ state, go, vocUser, hasWords, dueCount, activeListName }) {
+  const dist = masteryDistribution(state);
+  const labels = ["Neu", "Geübt", "Sicher", "Stark", "Gemeistert"];
+  const entries = [
+    { title: "Test-Modus", sub: "Alle Wörter prüfen", target: "test" },
+    { title: "Wortschatz", sub: "Alle Vokabeln", target: "overview" },
+    state.language === "en" && currentVerbs().length > 0 && { title: "Unregelmäßige Verben", sub: "Simple Past & Participle", target: "verbs" },
+    hasGeography() && { title: state.language === GEO_LANG ? "Zu Englisch" : "Zu Geographie", sub: "Fach wechseln", target: "switch-subject" },
+    { title: "Bestenliste", sub: "Letzte Sessions", target: "leaderboard" },
+    vocUser?.role === "student" && { title: "Meine Listen", sub: activeListName || "Alle Wörter", target: "student-lists" },
+    { title: "Eltern", sub: "Lernstand ansehen", target: "parent" },
+    vocUser?.role === "teacher" && { title: "Klassen", sub: "Listen & Schüler", target: "teacher" },
+  ].filter(Boolean);
+  return (
+    <div className="scroll vt-heft-home">
+      <div className="vt-heft-top">
+        <div>
+          <div className="t-body">{greeting()}{state.name ? "," : "!"}</div>
+          {state.name && <div className="t-display-name">{state.name}</div>}
+          <div className="vt-tape" style={{ marginTop: 10 }}>{languageLabel(state.language)}</div>
+        </div>
+        <button className="vt-iconbtn" aria-label="Einstellungen" onClick={() => go("settings")}><Icon name="gear" size={22} /></button>
+      </div>
+
+      <div className="vt-heft-stats">
+        <div className="vt-chip" title="Streak">
+          <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path d="M7 0c1 3 5 5 5 9.5A5 5 0 0 1 2 9.5C2 7 4 6 4 3.5 5.5 4.5 6 6 6 7 7.5 5 7 2 7 0Z" fill="var(--wrong)" stroke="var(--ink)" strokeWidth="1.4" /></svg>
+          {state.streak === 1 ? "1 Tag" : state.streak + " Tage"}
+        </div>
+        <div className="vt-chip" title="Erfahrungspunkte">
+          <svg width="12" height="16" viewBox="0 0 12 16" aria-hidden="true"><path d="M7 0 0 9h5l-1 7 8-10H7l1-6Z" fill="var(--marker)" stroke="var(--ink)" strokeWidth="1.4" strokeLinejoin="round" /></svg>
+          {state.xp} XP
+        </div>
+      </div>
+
+      <div className="vt-sheet vt-heft-hero">
+        <div className="vt-label">Heutige Übung</div>
+        <h1 className="vt-sheet__title">
+          {hasWords ? <><span className="vt-hl">{dueCount}</span> Wörter dran</> : "CSV importieren"}
+        </h1>
+        <p className="vt-sheet__text vt-heft-hero-text">
+          {hasWords ? "Ca. 5 Minuten. Frisch für dich zusammengestellt." : "Für diese Sprache ist noch keine Vokabelliste importiert."}
+        </p>
+        <button className="vt-btn vt-btn--primary" disabled={!hasWords} style={{ marginTop: 18 }} onClick={() => go("session")}>
+          <Icon name="play" size={18} /> Session starten
+        </button>
+        {state.streak > 0 && <span className="vt-stamp vt-stamp--correct vt-sheet__stamp">Tag {state.streak}</span>}
+      </div>
+
+      <section className="vt-heft-words">
+        <div className="vt-sec"><h2 className="vt-sec__title">Dein Wortschatz</h2><span className="t-counter">{TOTAL_WORDS}</span></div>
+        <div className="vt-levelbar" role="img" aria-label={labels.map((l, i) => dist[i] + " " + l).join(", ")}>
+          {dist.map((c, i) => c > 0 && <span key={i} className={HEFT_LEVEL_CLASS[i]} style={{ flex: c }} />)}
+        </div>
+        <ul className="vt-legend">
+          {labels.map((l, i) => <li key={l}><i className={HEFT_LEVEL_CLASS[i]} />{l}<b>{dist[i]}</b></li>)}
+        </ul>
+      </section>
+
+      <nav className="vt-heft-toc" aria-label="Inhalt">
+        <div className="vt-sec"><h2 className="vt-sec__title">Inhalt</h2></div>
+        <div className="vt-toc">
+          {entries.map((e, i) => (
+            <button key={e.target} className="vt-toc__row" onClick={() => go(e.target)}>
+              <span className="vt-toc__n vt-toc__n--in">{String(i + 1).padStart(2, "0")}</span>
+              <span><span className="vt-toc__t">{e.title}</span><span className="vt-toc__d">{e.sub}</span></span>
+              <span className="vt-toc__dots" />
+              <span className="vt-toc__end" aria-hidden="true">→</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+    </div>
+  );
+}
+
 /* ---------------- HOME ---------------- */
 function Home({ state, go, onOpenTheme, vocUser }) {
   const hasWords = TOTAL_WORDS > 0;
@@ -193,6 +270,7 @@ function Home({ state, go, onOpenTheme, vocUser }) {
   const activeListName = vocUser?.role === "student"
     ? (() => { try { return JSON.parse(localStorage.getItem("vt_active_list"))?.name || null; } catch (e) { return null; } })()
     : null;
+  if (readDesign() === "heft") return <HomeHeft state={state} go={go} vocUser={vocUser} hasWords={hasWords} dueCount={dueCount} activeListName={activeListName} />;
   return (
     <div className="scroll vt-home" style={{ padding: "6px 18px 30px" }}>
       <div className="vt-home-header" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 2px 18px" }}>
@@ -209,7 +287,7 @@ function Home({ state, go, onOpenTheme, vocUser }) {
       </div>
 
       <div className="vt-home-stats" style={{ display: "flex", gap: 10, marginBottom: 18 }}>
-        <StatChip icon="flame" value={state.streak + " Tage"} color="#F2701A" label="Streak" />
+        <StatChip icon="flame" value={state.streak === 1 ? "1 Tag" : state.streak + " Tage"} color="#F2701A" label="Streak" />
         <StatChip icon="bolt" value={state.xp + " XP"} color="var(--accent)" label="Erfahrungspunkte" />
       </div>
 
@@ -395,9 +473,9 @@ function Overview({ state, go }) {
       )}
       {!query.trim() && (
         <div style={{ display: "flex", gap: 8, padding: "0 18px 10px", overflowX: "auto", scrollbarWidth: "none" }}>
-          <button onClick={() => setLvl("all")} style={chipStyle(lvl === "all")}>Alle · {TOTAL_WORDS}</button>
+          <button className="vt-heft-filter" onClick={() => setLvl("all")} style={chipStyle(lvl === "all")}>Alle · {TOTAL_WORDS}</button>
           {[1,2,3,4,5].map(i => (
-            <button key={i} onClick={() => setLvl(i)} style={chipStyle(lvl === i)}>
+            <button key={i} className="vt-heft-filter" onClick={() => setLvl(i)} style={chipStyle(lvl === i)}>
               {["Neu","Geübt","Sicher","Stark","Gemeistert"][i-1]} · {dist[i-1]}
             </button>
           ))}
@@ -405,14 +483,14 @@ function Overview({ state, go }) {
       )}
       <div style={{ display: "flex", gap: 8, padding: "0 18px 10px", overflowX: "auto", scrollbarWidth: "none" }}>
         {[["list", "Listenreihenfolge"], ["weak", "Schwächste zuerst"], ["strong", "Beste zuerst"]].map(([id, label]) => (
-          <button key={id} onClick={() => setSort(id)} style={chipStyle(sort === id)}>{label}</button>
+          <button key={id} className="vt-heft-filter" onClick={() => setSort(id)} style={chipStyle(sort === id)}>{label}</button>
         ))}
       </div>
       <div className="scroll" style={{ padding: "4px 18px 28px" }}>
         {words.length === 0 && <div className="dim" style={{ textAlign: "center", padding: 40 }}>Keine Wörter hier.</div>}
         <div style={{ display: "grid", gap: 8 }}>
           {words.map(w => (
-            <div key={w.id} className="card" style={{ padding: "13px 15px", display: "flex", alignItems: "center", gap: 12 }}>
+            <div key={w.id} className="card vt-heft-row" style={{ padding: "13px 15px", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 16 }}>{w.en}</div>
                 <div className="dim" style={{ fontSize: 13.5 }}>{w.de}</div>
@@ -464,7 +542,7 @@ function Leaderboard({ state, go }) {
             <div className="eyebrow" style={{ margin: "4px 2px 10px" }}>Letzte {state.history.length} Sessions</div>
             <div style={{ display: "grid", gap: 8 }}>
               {state.history.map((h, i) => (
-                <div key={i} className="card" style={{ padding: "13px 15px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div key={i} className="card vt-heft-row" style={{ padding: "13px 15px", display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontFamily: "var(--font-display)", fontSize: 14, color: "var(--text-dim)" }}>{i + 1}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: 15 }}>{h.score}/{h.total} richtig {h.mode === "test" && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-2)", marginLeft: 4 }}>· TEST</span>}</div>
@@ -899,14 +977,14 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak, onLogout
 function Section({ title, children }) {
   return (
     <div>
-      <div className="eyebrow" style={{ marginBottom: 10, marginLeft: 2 }}>{title}</div>
-      <div className="card" style={{ padding: 16, display: "flex", flexDirection: "column" }}>{children}</div>
+      <div className="eyebrow vt-heft-sechead" style={{ marginBottom: 10, marginLeft: 2 }}>{title}</div>
+      <div className="card vt-heft-section" style={{ padding: 16, display: "flex", flexDirection: "column" }}>{children}</div>
     </div>
   );
 }
 function Row({ label, value, onClick, chevron }) {
   return (
-    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 2px", background: "none", border: "none", cursor: "pointer", color: "var(--text)", fontFamily: "var(--font-ui)", fontSize: 16, width: "100%", textAlign: "left" }}>
+    <button className="vt-heft-setting" onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 2px", background: "none", border: "none", cursor: "pointer", color: "var(--text)", fontFamily: "var(--font-ui)", fontSize: 16, width: "100%", textAlign: "left" }}>
       <span style={{ flex: 1, fontWeight: 500 }}>{label}</span>
       {value && <span className="dim" style={{ fontSize: 15 }}>{value}</span>}
       {chevron && <span className="dim"><Icon name="chevron" size={18} /></span>}
