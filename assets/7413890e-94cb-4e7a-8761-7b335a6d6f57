@@ -326,7 +326,7 @@ function FeedbackBar({ status, correct, xp, info, typo, onNext, tweaks }) {
         </div>
       </div>
       <button onClick={onNext} className="btn btn-block" style={{ marginTop: 14,
-        background: ok ? "var(--correct)" : "var(--wrong)", color: "#fff" }}>
+        background: ok ? "var(--correct)" : "var(--wrong)", color: ok ? "var(--on-correct, #fff)" : "var(--on-wrong, #fff)" }}>
         Weiter <Icon name="arrowR" size={20} />
       </button>
     </div>

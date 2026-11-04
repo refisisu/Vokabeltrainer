@@ -97,6 +97,29 @@ let VOCAB = [];
 let TOTAL_WORDS = 0;
 let byId = {};
 
+// --- Design ---
+// Gilt je Gerät und ändert nur das Aussehen, deshalb außerhalb von Lernstand und Abgleich.
+const DESIGN_KEY = "vt_design";
+const DESIGN_THEME_COLOR = { city: "#F4EFE3", forest: "#E6DABF", ocean: "#E6EEF2", space: "#1C211F" };
+function readDesign() {
+  try { return localStorage.getItem(DESIGN_KEY); } catch (e) { return null; }
+}
+function applyDesign(theme) {
+  const heft = readDesign() === "heft";
+  if (heft) {
+    document.body.dataset.design = "heft";
+    document.body.dataset.mode = "auto";
+  } else {
+    delete document.body.dataset.design;
+    delete document.body.dataset.mode;
+  }
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", heft ? (DESIGN_THEME_COLOR[theme] || DESIGN_THEME_COLOR.city) : "#F2701A");
+}
+function chooseDesign(design, theme) {
+  try { localStorage.setItem(DESIGN_KEY, design); } catch (e) {}
+  applyDesign(theme);
+}
+
 // --- Storage ---
 const LS_KEY = "vt_state_v2";
 const LEGACY_LS_KEY = "vt_state_v1";
@@ -820,7 +843,7 @@ Object.assign(window, {
   buildSession, buildTest, makeQuestion, applyResult, finishSession,
   makeVerbQuestion, buildVerbSession,
   pick, todayStr,
-  visibleVocabulary, GEO_LANG, hasGeography, availableLanguages, parseVerbForms, verbIdFor, currentVerbs, vocabWordKey, readAssignedLists, activeAssignedList, selectAssignedList, loadVocabulary,
+  readDesign, applyDesign, chooseDesign, visibleVocabulary, GEO_LANG, hasGeography, availableLanguages, parseVerbForms, verbIdFor, currentVerbs, vocabWordKey, readAssignedLists, activeAssignedList, selectAssignedList, loadVocabulary,
   weeklyActivity, relativeDate, exportParentSnapshot, makeParentShareUrl,
 });
 

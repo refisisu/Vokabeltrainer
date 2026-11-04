@@ -882,7 +882,7 @@ function TeacherStatsView({ session }) {
               style={{ flex: "0 0 auto", padding: "6px 14px", borderRadius: 99, cursor: "pointer",
                 border: "1px solid var(--border)", fontWeight: 600, fontSize: 13, fontFamily: "var(--font-ui)",
                 background: filterClass === c.id ? "var(--accent)" : "var(--surface)",
-                color: filterClass === c.id ? "#fff" : "var(--text-dim)" }}>
+                color: filterClass === c.id ? "var(--on-accent, #fff)" : "var(--text-dim)" }}>
               {c.name}
             </button>
           ))}

@@ -1,0 +1,362 @@
+{
+  "$description": "Vokabeltrainer Design-Tokens, Richtung A Schulheft. Quelle für vt-theme.css (node build-theme.mjs).",
+  "version": 1,
+  "themes": {
+    "city": {
+      "light": {
+        "paper": "#F4EFE3",
+        "paper-raised": "#FFFDF7",
+        "paper-sunk": "#E8E1CF",
+        "ink": "#1A1A1A",
+        "ink-muted": "#55504A",
+        "line-soft": "#8A8578",
+        "margin": "#D9463D",
+        "marker": "#FFE14D",
+        "on-marker": "#1A1A1A",
+        "correct": "#2346D8",
+        "on-correct": "#FFFFFF",
+        "correct-soft": "#DDE4FB",
+        "wrong": "#C4281F",
+        "on-wrong": "#FFFFFF",
+        "wrong-soft": "#F8DCD7",
+        "focus": "#2346D8",
+        "level-neu": "{paper-raised}",
+        "level-geuebt": "{ink-muted}",
+        "level-sicher": "{correct}",
+        "level-stark": "{marker}",
+        "level-gemeistert": "{ink}",
+        "shadow-press": "3px 3px 0 0 #1A1A1A",
+        "shadow-button": "4px 4px 0 0 #1A1A1A",
+        "shadow-sheet": "6px 6px 0 0 #1A1A1A",
+        "shadow-none": "none"
+      },
+      "dark": {
+        "paper": "#1E1D1A",
+        "paper-raised": "#292824",
+        "paper-sunk": "#161513",
+        "ink": "#EEEBE3",
+        "ink-muted": "#ABA79E",
+        "line-soft": "#6E6A62",
+        "margin": "#FF7A6E",
+        "marker": "#FFE14D",
+        "on-marker": "#1A1A1A",
+        "correct": "#9DB2FF",
+        "on-correct": "#0E1A44",
+        "correct-soft": "#262E4A",
+        "wrong": "#FF8A7E",
+        "on-wrong": "#2A0E0B",
+        "wrong-soft": "#432622",
+        "focus": "#9DB2FF",
+        "level-neu": "{paper-raised}",
+        "level-geuebt": "{ink-muted}",
+        "level-sicher": "{correct}",
+        "level-stark": "{marker}",
+        "level-gemeistert": "{ink}",
+        "shadow-press": "3px 3px 0 0 #000000",
+        "shadow-button": "4px 4px 0 0 #000000",
+        "shadow-sheet": "6px 6px 0 0 #000000",
+        "shadow-none": "none"
+      }
+    },
+    "forest": {
+      "light": {
+        "paper": "#E6DABF",
+        "paper-raised": "#FBF6EA",
+        "paper-sunk": "#D9CAA9",
+        "ink": "#1C1A14",
+        "ink-muted": "#4C4334",
+        "line-soft": "#85775B",
+        "margin": "#C2412F",
+        "marker": "#7CF25C",
+        "on-marker": "#1C1A14",
+        "correct": "#1F3FC4",
+        "on-correct": "#FFFFFF",
+        "correct-soft": "#D9DEF3",
+        "wrong": "#A8271C",
+        "on-wrong": "#FFFFFF",
+        "wrong-soft": "#F1D3C7",
+        "focus": "#1F3FC4",
+        "level-neu": "{paper-raised}",
+        "level-geuebt": "{ink-muted}",
+        "level-sicher": "{correct}",
+        "level-stark": "{marker}",
+        "level-gemeistert": "{ink}",
+        "shadow-press": "3px 3px 0 0 #1A1A1A",
+        "shadow-button": "4px 4px 0 0 #1A1A1A",
+        "shadow-sheet": "6px 6px 0 0 #1A1A1A",
+        "shadow-none": "none"
+      },
+      "dark": {
+        "paper": "#18201B",
+        "paper-raised": "#212B24",
+        "paper-sunk": "#111713",
+        "ink": "#E9EEE6",
+        "ink-muted": "#A3AEA4",
+        "line-soft": "#62705F",
+        "margin": "#FF7A6E",
+        "marker": "#7CF25C",
+        "on-marker": "#14200F",
+        "correct": "#9DB2FF",
+        "on-correct": "#0E1A44",
+        "correct-soft": "#22304A",
+        "wrong": "#FF8A7E",
+        "on-wrong": "#2A0E0B",
+        "wrong-soft": "#3E2522",
+        "focus": "#9DB2FF",
+        "level-neu": "{paper-raised}",
+        "level-geuebt": "{ink-muted}",
+        "level-sicher": "{correct}",
+        "level-stark": "{marker}",
+        "level-gemeistert": "{ink}",
+        "shadow-press": "3px 3px 0 0 #000000",
+        "shadow-button": "4px 4px 0 0 #000000",
+        "shadow-sheet": "6px 6px 0 0 #000000",
+        "shadow-none": "none"
+      }
+    },
+    "ocean": {
+      "light": {
+        "paper": "#E6EEF2",
+        "paper-raised": "#FBFDFE",
+        "paper-sunk": "#D4E2EA",
+        "ink": "#0F1A24",
+        "ink-muted": "#41546A",
+        "line-soft": "#6B8496",
+        "margin": "#D9463D",
+        "marker": "#FF5FAE",
+        "on-marker": "#1A0F16",
+        "correct": "#1D3FC0",
+        "on-correct": "#FFFFFF",
+        "correct-soft": "#D5DEF8",
+        "wrong": "#C4281F",
+        "on-wrong": "#FFFFFF",
+        "wrong-soft": "#F7DCDA",
+        "focus": "#1D3FC0",
+        "level-neu": "{paper-raised}",
+        "level-geuebt": "{ink-muted}",
+        "level-sicher": "{correct}",
+        "level-stark": "{marker}",
+        "level-gemeistert": "{ink}",
+        "shadow-press": "3px 3px 0 0 #1A1A1A",
+        "shadow-button": "4px 4px 0 0 #1A1A1A",
+        "shadow-sheet": "6px 6px 0 0 #1A1A1A",
+        "shadow-none": "none"
+      },
+      "dark": {
+        "paper": "#141C22",
+        "paper-raised": "#1C2730",
+        "paper-sunk": "#0E1418",
+        "ink": "#E6EEF3",
+        "ink-muted": "#9FAEBA",
+        "line-soft": "#5D7080",
+        "margin": "#FF7A6E",
+        "marker": "#FF6FB5",
+        "on-marker": "#1A0F16",
+        "correct": "#A7BBFF",
+        "on-correct": "#0E1A44",
+        "correct-soft": "#1F2E4A",
+        "wrong": "#FF8A7E",
+        "on-wrong": "#2A0E0B",
+        "wrong-soft": "#3A2426",
+        "focus": "#A7BBFF",
+        "level-neu": "{paper-raised}",
+        "level-geuebt": "{ink-muted}",
+        "level-sicher": "{correct}",
+        "level-stark": "{marker}",
+        "level-gemeistert": "{ink}",
+        "shadow-press": "3px 3px 0 0 #000000",
+        "shadow-button": "4px 4px 0 0 #000000",
+        "shadow-sheet": "6px 6px 0 0 #000000",
+        "shadow-none": "none"
+      }
+    },
+    "space": {
+      "dark": {
+        "paper": "#1C211F",
+        "paper-raised": "#262C29",
+        "paper-sunk": "#141816",
+        "ink": "#EDEAE0",
+        "ink-muted": "#A9B0AA",
+        "line-soft": "#66706B",
+        "margin": "#FF7A6E",
+        "marker": "#E8FF3A",
+        "on-marker": "#1A1A1A",
+        "correct": "#9DB2FF",
+        "on-correct": "#0E1A44",
+        "correct-soft": "#24304F",
+        "wrong": "#FF8A7E",
+        "on-wrong": "#2A0E0B",
+        "wrong-soft": "#432622",
+        "focus": "#9DB2FF",
+        "level-neu": "{paper-raised}",
+        "level-geuebt": "{ink-muted}",
+        "level-sicher": "{correct}",
+        "level-stark": "{marker}",
+        "level-gemeistert": "{ink}",
+        "shadow-press": "3px 3px 0 0 #000000",
+        "shadow-button": "4px 4px 0 0 #000000",
+        "shadow-sheet": "6px 6px 0 0 #000000",
+        "shadow-none": "none"
+      }
+    }
+  },
+  "themeColor": {
+    "city": "#F4EFE3",
+    "forest": "#E6DABF",
+    "ocean": "#E6EEF2",
+    "space": "#1C211F"
+  },
+  "font": {
+    "display": {
+      "stack": "\"Bricolage Grotesque\", \"Arial Black\", system-ui, sans-serif",
+      "file": "fonts/BricolageGrotesque-Variable.woff2",
+      "weight": "400 800"
+    },
+    "ui": {
+      "stack": "\"Atkinson Hyperlegible Next\", \"Atkinson Hyperlegible\", system-ui, sans-serif",
+      "file": "fonts/AtkinsonHyperlegibleNext-Variable.woff2",
+      "weight": "200 800"
+    },
+    "mono": {
+      "stack": "\"Spline Sans Mono\", ui-monospace, \"SF Mono\", monospace",
+      "file": "fonts/SplineSansMono-Variable.woff2",
+      "weight": "300 700"
+    }
+  },
+  "text": {
+    "display-name": {
+      "fontSize": "44px",
+      "lineHeight": "44px",
+      "fontWeight": 800,
+      "letterSpacing": "-0.02em",
+      "family": "display"
+    },
+    "display-word": {
+      "fontSize": "40px",
+      "lineHeight": "44px",
+      "fontWeight": 800,
+      "letterSpacing": "-0.01em",
+      "family": "display"
+    },
+    "title-lg": {
+      "fontSize": "34px",
+      "lineHeight": "36px",
+      "fontWeight": 800,
+      "letterSpacing": "-0.01em",
+      "family": "display"
+    },
+    "title-md": {
+      "fontSize": "22px",
+      "lineHeight": "26px",
+      "fontWeight": 800,
+      "family": "display"
+    },
+    "title-sm": {
+      "fontSize": "18px",
+      "lineHeight": "22px",
+      "fontWeight": 800,
+      "family": "display"
+    },
+    "body": {
+      "fontSize": "16px",
+      "lineHeight": "23px",
+      "fontWeight": 400,
+      "family": "ui"
+    },
+    "body-sm": {
+      "fontSize": "14px",
+      "lineHeight": "20px",
+      "fontWeight": 400,
+      "family": "ui"
+    },
+    "button": {
+      "fontSize": "18px",
+      "lineHeight": "22px",
+      "fontWeight": 800,
+      "family": "ui"
+    },
+    "input": {
+      "fontSize": "20px",
+      "lineHeight": "26px",
+      "fontWeight": 600,
+      "family": "ui"
+    },
+    "label": {
+      "fontSize": "12px",
+      "lineHeight": "16px",
+      "fontWeight": 700,
+      "letterSpacing": "0.14em",
+      "family": "ui"
+    },
+    "counter": {
+      "fontSize": "15px",
+      "lineHeight": "20px",
+      "fontWeight": 700,
+      "family": "mono"
+    },
+    "index": {
+      "fontSize": "13px",
+      "lineHeight": "16px",
+      "fontWeight": 700,
+      "family": "mono"
+    }
+  },
+  "space": {
+    "space-1": "4px",
+    "space-2": "8px",
+    "space-3": "12px",
+    "space-4": "16px",
+    "space-5": "20px",
+    "space-6": "24px",
+    "space-8": "32px",
+    "margin-inset": "30px",
+    "content-inset": "44px"
+  },
+  "radius": {
+    "radius-xs": "3px",
+    "radius-sm": "4px",
+    "radius-md": "6px",
+    "radius-round": "999px"
+  },
+  "border": {
+    "border-hair": "1.5px",
+    "border-ui": "2.5px",
+    "border-heavy": "3.5px"
+  },
+  "tilt": {
+    "tilt-tape": "-2deg",
+    "tilt-stamp": "-12deg"
+  },
+  "motion": {
+    "t-press": "80ms",
+    "t-stamp": "180ms",
+    "ease-press": "linear"
+  },
+  "legacy": {
+    "$description": "Alte Variablen aus index.html, auf neue Tokens umgeleitet. Nach der Migration löschen.",
+    "--bg": "var(--paper-sunk)",
+    "--app-bg": "var(--paper)",
+    "--surface": "var(--paper-raised)",
+    "--surface-2": "var(--paper-sunk)",
+    "--surface-3": "var(--paper-sunk)",
+    "--text": "var(--ink)",
+    "--text-dim": "var(--ink-muted)",
+    "--text-soft": "var(--line-soft)",
+    "--primary": "var(--marker)",
+    "--primary-ink": "var(--on-marker)",
+    "--primary-soft": "var(--paper-sunk)",
+    "--accent": "var(--ink)",
+    "--accent-2": "var(--correct)",
+    "--border": "var(--ink)",
+    "--shadow": "rgba(0,0,0,0)",
+    "--texture": "none",
+    "--texture-size": "auto",
+    "--star": "transparent",
+    "--r-sm": "var(--radius-sm)",
+    "--r-md": "var(--radius-md)",
+    "--r-lg": "var(--radius-md)",
+    "--r-xl": "var(--radius-md)",
+    "--r-pill": "var(--radius-md)",
+    "--ease": "cubic-bezier(.2,0,0,1)"
+  }
+}

@@ -1,0 +1,33 @@
+/* Vokabeltrainer — überträgt das neue Design auf die bestehenden Klassen aus index.html. Gilt nur im neuen Design. */
+body[data-design="heft"]{--on-accent:var(--paper);}
+/* Knöpfe ohne eigene Textfarbe erben die Tinte, sonst bleibt Text im Dunkelmodus schwarz */
+body[data-design="heft"] button{color:inherit;}
+
+body[data-design="heft"] #stage{background:var(--paper-sunk);}
+body[data-design="heft"] #device{box-shadow:none;}
+body[data-design="heft"] #starfield{display:none;}
+@media(min-width:480px){
+  body[data-design="heft"] #device{border-radius:var(--radius-md);border:var(--border-ui) solid var(--ink);box-shadow:var(--shadow-sheet);}
+}
+
+body[data-design="heft"] .display,
+body[data-design="heft"] .h1,
+body[data-design="heft"] .h2{font-weight:800;font-variation-settings:"opsz" 96;}
+body[data-design="heft"] .eyebrow{font-weight:700;letter-spacing:.14em;color:var(--ink-muted);}
+
+body[data-design="heft"] .btn{
+  min-height:48px;font-weight:800;border:var(--border-ui) solid var(--ink);border-radius:var(--radius-md);
+  box-shadow:var(--shadow-press);transition:transform var(--t-press) var(--ease-press),box-shadow var(--t-press) var(--ease-press);
+}
+body[data-design="heft"] .btn:active{transform:translate(3px,3px);box-shadow:var(--shadow-none);}
+body[data-design="heft"] .btn:focus-visible{outline:3px solid var(--focus);outline-offset:3px;}
+body[data-design="heft"] .btn-primary{background:var(--marker);color:var(--on-marker);box-shadow:var(--shadow-button);}
+body[data-design="heft"] .btn-primary:active{transform:translate(4px,4px);box-shadow:var(--shadow-none);}
+body[data-design="heft"] .btn-primary:disabled{opacity:1;background:var(--paper-sunk);color:var(--ink-muted);border-style:dashed;box-shadow:var(--shadow-none);}
+body[data-design="heft"] .btn-ghost{background:var(--paper-raised);color:var(--ink);}
+body[data-design="heft"] .btn-ghost:active{background:var(--paper-sunk);}
+
+body[data-design="heft"] .card{border:var(--border-ui) solid var(--ink);border-radius:var(--radius-md);background:var(--paper-raised);box-shadow:var(--shadow-press);}
+
+body[data-design="heft"] .field{font-weight:600;border:var(--border-ui) solid var(--ink);border-radius:var(--radius-md);background:var(--paper-raised);}
+body[data-design="heft"] .field:focus{border-color:var(--ink);box-shadow:none;outline:3px solid var(--focus);outline-offset:2px;}

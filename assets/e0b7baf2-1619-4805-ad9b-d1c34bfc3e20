@@ -138,6 +138,7 @@ function App() {
   const [lastResult, setLastResult] = useA(null);
   const [themeSheet, setThemeSheet] = useA(false);
   const [localMode, setLocalMode] = useA(false);
+  const [designAsked, setDesignAsked] = useA(() => !!readDesign());
   const [, setVocabTick] = useA(0);
   const [syncTick, setSyncTick] = useA(0);
   const lastWordCount = useARef(TOTAL_WORDS);
@@ -153,6 +154,7 @@ function App() {
     if (syncTick > 0 && session && vocUser?.role === "student") runSync(session.user.id);
   }, [syncTick]);
   useAE(() => { if (state.onboarded) document.body.className = "theme-" + state.theme; }, [state.theme, state.onboarded]);
+  useAE(() => { applyDesign(state.onboarded ? state.theme : "city"); }, [state.theme, state.onboarded]);
 
   const go = (target) => {
     if (target === "session") {
@@ -268,6 +270,9 @@ function App() {
         </div>
       )}
       {view}
+      {!designAsked && vocUser?.role === "student" && state.onboarded && screen === "home" && (
+        <DesignPrompt onPick={(design) => { chooseDesign(design, state.theme); setDesignAsked(true); }} />
+      )}
       {themeSheet && <ThemeSheet current={state.theme} onClose={() => setThemeSheet(false)}
         onPick={(id) => { setState(s => ({ ...s, theme: id })); setThemeSheet(false); }} />}
 
