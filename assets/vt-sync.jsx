@@ -121,7 +121,7 @@ function syncWriteMeta(meta) {
 }
 
 function syncStashKeys() {
-  return [LS_KEY, LEGACY_LS_KEY, ...LANGUAGES.map(l => VOCAB_KEY(l.id)), "vt_active_list", ASSIGNED_LISTS_KEY, ASSIGNED_VERBS_KEY];
+  return [LS_KEY, LEGACY_LS_KEY, ...LANGUAGES.map(l => VOCAB_KEY(l.id)), "vt_active_list", ASSIGNED_LISTS_KEY, ASSIGNED_VERBS_KEY, ASSIGNED_GEO_KEY];
 }
 
 // Meldet sich ein anderes Konto an, wird der Stand des bisherigen Kontos beiseitegelegt und nicht vermischt.
@@ -153,7 +153,8 @@ function syncBuildLang(lang, child, remote, meta) {
   const known = meta.known[lang] || {};
   const words = {};
   const idToKey = {};
-  loadVocabulary(lang).forEach(w => {
+  // Geographie-Karten kommen aus der Liste, nur ihr Lernstand wird abgeglichen
+  (lang === GEO_LANG ? [] : loadVocabulary(lang)).forEach(w => {
     const key = syncWordKey(w.en);
     idToKey[w.id] = key;
     if (!words[key]) {
@@ -164,7 +165,7 @@ function syncBuildLang(lang, child, remote, meta) {
   const extraLeitner = {};
   Object.entries(progress.leitner || {}).forEach(([id, rec]) => {
     if (idToKey[id]) leitner[idToKey[id]] = syncMergeRecord(leitner[idToKey[id]], rec);
-    else if (id.startsWith("irr-")) extraLeitner[id] = rec;
+    else if (id.startsWith("irr-") || id.startsWith("geo-")) extraLeitner[id] = rec;
   });
   const ownCounter = (localValue, knownOthers, counters) => Math.max(
     counters?.[meta.deviceId] || 0,
@@ -291,9 +292,19 @@ async function syncFetchAssignedLists(userId) {
   const now = Date.now();
   const lists = [];
   const verbLists = [];
+  const geoLists = [];
   const fetched = [];
   for (const list of assigned.values()) {
     const old = cached[list.id];
+    if (list.kind === "geography") {
+      // Immer neu laden: Korrekturen ändern die Anzahl nicht
+      const cards = await syncFetchListWords(list.id);
+      if (!cards) return false;
+      geoLists.push({ id: list.id, name: list.name, rows: cards
+        .map(w => ({ id: "geo-" + w.id, en: (w.original || "").trim(), de: (w.translation || "").trim() }))
+        .filter(w => w.en && w.de) });
+      continue;
+    }
     const isVerbs = list.kind === "irregular_verbs";
     if (old && old.count === list.count && now - (old.fetchedAt || 0) < SYNC_LIST_REFRESH_MS) {
       (isVerbs ? verbLists : lists).push({ ...old, name: list.name, className: list.className });
@@ -333,6 +344,14 @@ async function syncFetchAssignedLists(userId) {
   });
   if (added.length) localStorage.setItem(VOCAB_KEY(ASSIGNED_LISTS_LANG), JSON.stringify([...raw, ...added]));
   localStorage.setItem(ASSIGNED_LISTS_KEY, JSON.stringify(lists));
+  localStorage.setItem(ASSIGNED_GEO_KEY, JSON.stringify(geoLists));
+  if (!hasGeography()) {
+    const store = readStore();
+    if (store.activeLanguage === GEO_LANG) {
+      store.activeLanguage = ASSIGNED_LISTS_LANG;
+      localStorage.setItem(LS_KEY, JSON.stringify(store));
+    }
+  }
   const classes = (data || []).map(m => m.voc_classes).filter(Boolean);
   localStorage.setItem(ASSIGNED_VERBS_KEY, JSON.stringify({
     lists: verbLists,

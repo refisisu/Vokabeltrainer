@@ -100,7 +100,7 @@ function StudentListPicker({ session, go, inClass }) {
             Sobald dir eine Liste zugewiesen wird, erscheint sie hier.
           </div>
         )}
-        {!showLists && (
+        {!showLists && ACTIVE_LANGUAGE !== GEO_LANG && (
           <div className="dim" style={{ fontSize: 13, lineHeight: 1.5, marginTop: 14 }}>
             Zugewiesene Listen sind Englisch. Wechsle in den Einstellungen die Sprache, um sie zu üben.
           </div>

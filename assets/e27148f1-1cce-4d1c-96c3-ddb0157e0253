@@ -54,7 +54,10 @@ const EXAMPLES = {
 const LANGUAGES = [
   { id: "en", name: "Englisch", short: "EN" },
   { id: "fr", name: "Französisch", short: "FR" },
+  { id: "geo", name: "Geographie", short: "GEO" },
 ];
+const GEO_LANG = "geo";
+const ASSIGNED_GEO_KEY = "vt_assigned_geo";
 
 // --- Built-in irregular English verbs (separate from imported CSV vocab) ---
 const IRREGULAR_VERBS = [
@@ -145,10 +148,7 @@ function normalizeChild(raw, fallbackId = "child-1") {
   return {
     id: raw?.id || fallbackId,
     profile: { onboarded: !!raw?.profile?.onboarded, name: raw?.profile?.name || "", theme: raw?.profile?.theme || "city" },
-    progress: {
-      en: { ...emptyProgress(), ...(raw?.progress?.en || {}) },
-      fr: { ...emptyProgress(), ...(raw?.progress?.fr || {}) },
-    },
+    progress: Object.fromEntries(LANGUAGES.map(l => [l.id, { ...emptyProgress(), ...(raw?.progress?.[l.id] || {}) }])),
   };
 }
 function migrateChildren(store) {
@@ -206,8 +206,27 @@ function enrichVocabulary(lang, rows) {
     };
   }).filter(w => w.en && w.de);
 }
+function readAssignedGeo() {
+  try { return JSON.parse(localStorage.getItem(ASSIGNED_GEO_KEY)) || []; } catch (e) { return []; }
+}
+function hasGeography() {
+  return readAssignedGeo().some(l => (l.rows || []).length > 0);
+}
+// Geographie erscheint nur bei Kindern, denen eine Geographie-Liste zugewiesen ist.
+function availableLanguages() {
+  return LANGUAGES.filter(l => l.id !== GEO_LANG || hasGeography());
+}
 function loadVocabulary(lang = ACTIVE_LANGUAGE) {
   const active = normalizeLang(lang);
+  if (active === GEO_LANG) {
+    const seen = new Set();
+    const rows = readAssignedGeo().flatMap(l => l.rows || []).filter(w => {
+      if (seen.has(w.id)) return false;
+      seen.add(w.id);
+      return true;
+    });
+    return enrichVocabulary(active, rows);
+  }
   try {
     const raw = localStorage.getItem(VOCAB_KEY(active));
     if (raw) return enrichVocabulary(active, JSON.parse(raw));
@@ -568,8 +587,25 @@ function distractors(word, field, n) {
   return pick(pool, n).map(w => w[field]);
 }
 
+// Geographie: Falsche Antworten kommen aus derselben Angabe, sonst wäre die Lösung zu leicht erkennbar.
+function geoAttribute(word) {
+  const i = word.en.lastIndexOf(":");
+  return i >= 0 ? word.en.slice(i + 1).trim() : "";
+}
+function makeGeoChoice(word) {
+  const attr = geoAttribute(word);
+  const pool = [...new Set(VOCAB.filter(w => w.id !== word.id && geoAttribute(w) === attr && w.de !== word.de).map(w => w.de))];
+  return { kind: "mc", word, dir: "geo", prompt: word.en, correct: word.de, options: pick([word.de, ...pick(pool, 3)], 4) };
+}
+function makeGeoQuestion(word) {
+  const attr = geoAttribute(word);
+  if (attr === "Fläche" || Math.random() < 0.5) return makeGeoChoice(word);
+  return { kind: "type", word, prompt: word.en, correct: word.de, geo: true, lenient: attr === "Hauptstadt" || attr === "Großregion" };
+}
+
 // Build one question object for a word, given allowed types.
 function makeQuestion(word, types) {
+  if (word.language === GEO_LANG) return makeGeoQuestion(word);
   const usable = types.filter(t => t !== "match"); // match handled in groups
   let avail = [...usable];
   if (!word.example) avail = avail.filter(t => t !== "cloze");
@@ -614,7 +650,7 @@ function buildSession(state, types, max = 15) {
   const chosen = due.slice(0, max);
 
   const queue = [];
-  const wantMatch = types.includes("match") && chosen.length >= 6;
+  const wantMatch = types.includes("match") && chosen.length >= 6 && ACTIVE_LANGUAGE !== GEO_LANG;
   let matchPool = [];
   if (wantMatch) matchPool = chosen.slice(0, 6);
   const singleWords = wantMatch ? chosen.slice(6) : chosen;
@@ -646,6 +682,7 @@ function buildVerbSession(state, max = 10) {
 function buildTest(state) {
   const all = pick(VOCAB, VOCAB.length);
   return all.map(w => {
+    if (w.language === GEO_LANG) return { ...makeGeoChoice(w), test: true };
     const dir = "en2de";
     return { kind: "mc", word: w, dir, prompt: w.en, correct: w.de,
              options: pick([w.de, ...distractors(w, "de", 3)], 4), test: true };
@@ -769,7 +806,7 @@ Object.assign(window, {
   buildSession, buildTest, makeQuestion, applyResult, finishSession,
   makeVerbQuestion, buildVerbSession,
   pick, todayStr,
-  parseVerbForms, verbIdFor, currentVerbs, vocabWordKey, readAssignedLists, activeAssignedList, selectAssignedList, loadVocabulary,
+  GEO_LANG, hasGeography, availableLanguages, parseVerbForms, verbIdFor, currentVerbs, vocabWordKey, readAssignedLists, activeAssignedList, selectAssignedList, loadVocabulary,
   weeklyActivity, relativeDate, exportParentSnapshot, makeParentShareUrl,
 });
 

@@ -179,6 +179,9 @@ function App() {
         return;
       }
       setScreen("parent");
+    } else if (target === "switch-subject") {
+      setState(s => switchLanguage(s, s.language === GEO_LANG ? "en" : GEO_LANG));
+      setScreen("home");
     } else if (target === "local") {
       setLocalMode(true);
       setScreen("home");

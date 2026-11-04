@@ -46,6 +46,7 @@ function parseWords(raw) {
 
 function listSizeLabel(list) {
   const count = list.voc_words?.[0]?.count ?? 0;
+  if (list.kind === "geography") return `${count} Geographie-Karten`;
   return list.kind === "irregular_verbs" ? `${count} unregelmäßige Verben` : `${count} Wörter`;
 }
 
@@ -740,6 +741,27 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
   const isNew = !list;
 
   const isVerbList = kind === "irregular_verbs";
+  const isGeoList = kind === "geography";
+
+  const updateEntry = async (word, changes) => {
+    const next = { ...word, ...changes };
+    if (!next.original.trim() || !next.translation.trim()) { setError("Frage und Antwort dürfen nicht leer sein."); return; }
+    if (next.original === word.original && next.translation === word.translation) return;
+    setError(null);
+    const { data, error } = await window._sb.from("voc_words")
+      .update({ original: next.original.trim(), translation: next.translation.trim() })
+      .eq("id", word.id).select("id");
+    if (error || !data?.length) { setError(error?.message || "Änderung wurde nicht gespeichert."); return; }
+    setExistingWords(words => words.map(w => (w.id === word.id ? next : w)));
+  };
+
+  const deleteEntry = async (word) => {
+    if (!window.confirm(`"${word.original}" löschen?`)) return;
+    setError(null);
+    const { data, error } = await window._sb.from("voc_words").delete().eq("id", word.id).select("id");
+    if (error || !data?.length) { setError(error?.message || "Eintrag wurde nicht gelöscht."); return; }
+    setExistingWords(words => words.filter(w => w.id !== word.id));
+  };
   // Verbzeilen ohne lesbare Formen werden nicht gespeichert, die Vorschau meldet sie
   const validPreview = isVerbList ? preview.filter(w => parseVerbForms(w.hinweis)) : preview;
   const invalidCount = preview.length - validPreview.length;
@@ -839,7 +861,7 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
         <div className="eyebrow" style={{ marginBottom: 8 }}>Art der Liste</div>
         {isNew ? (
           <div style={{ display: "flex", background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: 3, marginBottom: 16 }}>
-            {[["vocab", "Vokabeln"], ["irregular_verbs", "Unregelmäßige Verben"]].map(([id, label]) => (
+            {[["vocab", "Vokabeln"], ["irregular_verbs", "Unregelmäßige Verben"], ["geography", "Geographie"]].map(([id, label]) => (
               <button key={id} onClick={() => setKind(id)}
                 style={{ flex: 1, padding: "10px 8px", border: "none", borderRadius: "calc(var(--r-md) - 3px)",
                   fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 14, cursor: "pointer",
@@ -850,7 +872,7 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
             ))}
           </div>
         ) : (
-          <div className="dim" style={{ fontSize: 14, marginBottom: 16 }}>{isVerbList ? "Unregelmäßige Verben" : "Vokabeln"}</div>
+          <div className="dim" style={{ fontSize: 14, marginBottom: 16 }}>{isGeoList ? "Geographie" : isVerbList ? "Unregelmäßige Verben" : "Vokabeln"}</div>
         )}
 
         {!isNew && (
@@ -862,7 +884,18 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
               <div className="dim" style={{ fontSize: 14 }}>Noch keine Einträge.</div>
             ) : (
               <div className="card" style={{ maxHeight: 280, overflowY: "auto" }}>
-                {existingWords.map(w => (
+                {existingWords.map(w => isGeoList ? (
+                  <div key={w.id + w.original + w.translation} style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>
+                    <input className="field" defaultValue={w.original} aria-label="Frage" style={{ flex: 3, minWidth: 0, fontSize: 14, padding: "8px 10px" }}
+                      onBlur={e => updateEntry(w, { original: e.target.value })} />
+                    <input className="field" defaultValue={w.translation} aria-label="Antwort" style={{ flex: 2, minWidth: 0, fontSize: 14, padding: "8px 10px" }}
+                      onBlur={e => updateEntry(w, { translation: e.target.value })} />
+                    <button className="btn btn-ghost" style={{ padding: "6px 10px", fontSize: 13, color: "var(--wrong)", flexShrink: 0 }}
+                      onClick={() => deleteEntry(w)}>
+                      Löschen
+                    </button>
+                  </div>
+                ) : (
                   <div key={w.id} style={{ display: "flex", gap: 12, padding: "9px 14px", borderBottom: "1px solid var(--border)", fontSize: 14 }}>
                     <span style={{ flex: 1, fontWeight: 500 }}>{w.original}</span>
                     <span style={{ flex: 1, color: "var(--text-dim)" }}>{w.translation}</span>
@@ -883,7 +916,9 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
         </div>
 
         <div className="dim" style={{ fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
-          {isVerbList
+          {isGeoList
+            ? <React.Fragment>Eine Karte pro Zeile: <code>Frankreich: Hauptstadt;Paris</code></React.Fragment>
+            : isVerbList
             ? <React.Fragment>Eine Zeile pro Verb: <code>go;gehen;;simple past: went | past participle: gone;</code></React.Fragment>
             : <React.Fragment>Ein Wortpaar pro Zeile: <code>Hund;chien</code> oder <code>Hund - chien</code></React.Fragment>}
         </div>

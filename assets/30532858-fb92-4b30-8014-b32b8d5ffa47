@@ -113,7 +113,7 @@ function Onboarding({ onDone }) {
             <div className="dim" style={{ fontSize: 16, marginTop: 8 }}>Beide Sprachen starten leer. Importiere deine Listen per CSV.</div>
           </div>
           <div style={{ display: "grid", gap: 12 }}>
-            {LANGUAGES.map(l => {
+            {availableLanguages().map(l => {
               const active = language === l.id;
               return (
                 <button key={l.id} onClick={() => setLanguage(l.id)}
@@ -209,6 +209,9 @@ function Home({ state, go, onOpenTheme, vocUser }) {
         <TileBtn icon="list" title="Wortschatz" sub="Alle Vokabeln" onClick={() => go("overview")} />
         {state.language === "en" && currentVerbs().length > 0 && (
           <TileBtn icon="book" title="Unregelmäßige Verben" sub="Simple Past & Participle" onClick={() => go("verbs")} />
+        )}
+        {hasGeography() && (
+          <TileBtn icon="spark" title={state.language === GEO_LANG ? "Zu Englisch" : "Zu Geographie"} sub="Fach wechseln" onClick={() => go("switch-subject")} />
         )}
         <TileBtn icon="trophy" title="Bestenliste" sub="Letzte Sessions" onClick={() => go("leaderboard")} />
         <TileBtn icon="target" title="Eltern" sub="Lernstand ansehen" onClick={() => go("parent")} />
@@ -604,7 +607,7 @@ function ParentDashboard({ state, setState, go }) {
       <div className="scroll" style={{ padding: "8px 18px 28px", display: "flex", flexDirection: "column", gap: 14 }}>
         {/* Language tabs */}
         <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", paddingBottom: 2 }}>
-          {LANGUAGES.map(l => (
+          {availableLanguages().map(l => (
             <button key={l.id} onClick={() => setLang(l.id)} style={{ flex: "0 0 auto", padding: "8px 14px", borderRadius: 99, cursor: "pointer",
               border: "1px solid var(--border)", fontWeight: 600, fontSize: 13.5, fontFamily: "var(--font-ui)",
               background: lang === l.id ? "var(--accent)" : "var(--surface)", color: lang === l.id ? "#fff" : "var(--text-dim)" }}>
@@ -817,8 +820,8 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak, onLogout
           }} chevron />
         </Section>
 
-        <Section title="Sprache">
-          {LANGUAGES.map(l => (
+        <Section title={hasGeography() ? "Sprache und Fach" : "Sprache"}>
+          {availableLanguages().map(l => (
             <Row key={l.id} label={l.name} value={state.language === l.id ? "Aktiv" : null}
               onClick={() => setState(s => switchLanguage(s, l.id))} chevron />
           ))}
@@ -839,8 +842,10 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak, onLogout
             onChange={e => { importCsv(e.target.files?.[0]); e.target.value = ""; }} />
           <input ref={backupRef} type="file" accept=".json,application/json" style={{ display: "none" }}
             onChange={e => { importBackup(e.target.files?.[0]); e.target.value = ""; }} />
-          <Row label={"CSV importieren (" + languageShort(state.language) + ")"} value={TOTAL_WORDS + " Wörter"}
-            onClick={() => { if (requireParentPin("CSV importieren")) csvRef.current?.click(); }} chevron />
+          {state.language !== GEO_LANG && (
+            <Row label={"CSV importieren (" + languageShort(state.language) + ")"} value={TOTAL_WORDS + " Wörter"}
+              onClick={() => { if (requireParentPin("CSV importieren")) csvRef.current?.click(); }} chevron />
+          )}
           <div className="dim" style={{ fontSize: 12.5, lineHeight: 1.4, padding: "0 2px 10px" }}>
             CSV: fremdwort, uebersetzung; optional beispiel, hinweis, aussprache.
           </div>
