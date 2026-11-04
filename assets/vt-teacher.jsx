@@ -536,6 +536,31 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
   const [hideUnlisted, setHideUnlisted] = useT(cls.hide_unlisted_words === true);
   const link = inviteLink(cls.join_code);
 
+  const handleDeleteClass = async () => {
+    if (members === null) return;
+    if (members.length > 0) {
+      const typed = window.prompt(`In "${cls.name}" sind ${members.length} Mitglieder. Sie sehen danach keine Listen dieser Klasse mehr. Lernstand und Wörter bleiben erhalten.\n\nZum Löschen den Klassennamen eintippen:`);
+      if (typed === null) return;
+      if (typed.trim() !== cls.name) { setVerbError("Der Name stimmt nicht, die Klasse wurde nicht gelöscht."); return; }
+    } else if (!window.confirm(`Klasse "${cls.name}" löschen? Die Listen bleiben in der Bibliothek.`)) {
+      return;
+    }
+    setVerbError(null);
+    // Listen bleiben erhalten, auch wenn die Datenbank sie sonst zusammen mit der Klasse löschen würde
+    const { error: listError } = await window._sb.from("voc_lists").update({ class_id: null }).eq("class_id", cls.id);
+    if (listError) { setVerbError(listError.message); return; }
+    const removeClass = () => window._sb.from("voc_classes").delete().eq("id", cls.id).select("id");
+    let { data, error } = await removeClass();
+    if (error?.code === "23503") {
+      // Zuweisungen und Mitglieder erst entfernen, wenn die Datenbank es verlangt
+      await window._sb.from("voc_class_lists").delete().eq("class_id", cls.id);
+      await window._sb.from("voc_class_members").delete().eq("class_id", cls.id);
+      ({ data, error } = await removeClass());
+    }
+    if (error || !data?.length) { setVerbError(error?.message || "Die Klasse wurde nicht gelöscht."); return; }
+    onBack();
+  };
+
   const toggleHideUnlisted = async () => {
     const next = !hideUnlisted;
     setHideUnlisted(next);
@@ -604,10 +629,22 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
 
       {/* Header */}
       <div style={{ padding: "16px 18px 0", flexShrink: 0 }}>
-        <button className="btn btn-ghost" style={{ padding: "8px 12px", fontSize: 14, marginBottom: 12 }} onClick={onBack}>
-          <Icon name="arrowL" size={16} /> Klassen
-        </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <button className="btn btn-ghost" style={{ padding: "8px 12px", fontSize: 14 }} onClick={onBack}>
+            <Icon name="arrowL" size={16} /> Klassen
+          </button>
+          <button className="btn btn-ghost" style={{ padding: "8px 12px", fontSize: 14, color: "var(--wrong)" }}
+            disabled={members === null} onClick={handleDeleteClass}>
+            Klasse löschen
+          </button>
+        </div>
         <div className="h1" style={{ marginBottom: 12 }}>{cls.name}</div>
+        {verbError && (
+          <div style={{ marginBottom: 12, padding: "12px 14px", background: "var(--wrong-soft)",
+            color: "var(--wrong)", borderRadius: "var(--r-md)", fontSize: 14 }}>
+            {verbError}
+          </div>
+        )}
 
         {/* Einladungslink */}
         <div className="card" style={{ padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
@@ -642,7 +679,6 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
             <div className="dim" style={{ fontSize: 13, lineHeight: 1.4 }}>
               Gilt nur ohne eigene Verbliste. Ist eine zugewiesen, wird nur diese geübt.
             </div>
-            {verbError && <div style={{ color: "var(--wrong)", fontSize: 13, marginTop: 4 }}>{verbError}</div>}
           </div>
         </label>
 
