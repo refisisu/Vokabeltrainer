@@ -3,18 +3,6 @@
 const { useState: useT, useEffect: useTE, useCallback: useTC, useRef: useTR } = React;
 
 /* ── Hilfsfunktionen ── */
-function inviteLink(joinCode) {
-  return `${window.location.origin}${window.location.pathname}?join=${joinCode}`;
-}
-
-async function copyToClipboard(text, setCopied) {
-  try {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  } catch (e) {}
-}
-
 function parseCsvLine(line) {
   const fields = [];
   let field = "", inQuotes = false;
@@ -76,7 +64,7 @@ function ClassListView({ session, onSelectClass, onNewClass }) {
   useTE(() => {
     window._sb
       .from("voc_classes")
-      .select("id, name, join_code, created_at, show_builtin_verbs, hide_unlisted_words")
+      .select("id, name, created_at, show_builtin_verbs, hide_unlisted_words")
       .eq("teacher_id", session.user.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => setClasses(data || []));
@@ -95,7 +83,7 @@ function ClassListView({ session, onSelectClass, onNewClass }) {
 
       {classes.length === 0 ? (
         <EmptyState icon="🏫" title="Noch keine Klasse"
-          sub="Erstelle deine erste Klasse und lade Schülerinnen und Schüler ein."
+          sub="Erstelle deine erste Klasse und füge Schülerinnen und Schüler hinzu."
           action={<button className="btn btn-primary" onClick={onNewClass}>Klasse erstellen</button>} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -105,9 +93,6 @@ function ClassListView({ session, onSelectClass, onNewClass }) {
               <span style={{ fontSize: 28 }}>🏫</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 17 }}>{cls.name}</div>
-                <div className="dim" style={{ fontSize: 13, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {inviteLink(cls.join_code)}
-                </div>
               </div>
               <Icon name="arrowR" size={18} style={{ color: "var(--text-dim)", flexShrink: 0 }} />
             </button>
@@ -148,7 +133,7 @@ function NewClassForm({ session, onDone, onBack }) {
         <div>
           <div className="h1">Neue Klasse</div>
           <div className="dim" style={{ fontSize: 15, marginTop: 8 }}>
-            Gib deiner Klasse einen Namen. Danach kannst du den Einladungslink teilen.
+            Gib deiner Klasse einen Namen. Danach kannst du Schüler hinzufügen.
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -427,114 +412,16 @@ function AddStudentModal({ cls, onClose, onAdded }) {
   );
 }
 
-/* ── Bulk-Einladung per E-Mail (Bottom Sheet) ── */
-function BulkInviteModal({ cls, onClose }) {
-  const [emails, setEmails] = useT("");
-  const [sending, setSending] = useT(false);
-  const [results, setResults] = useT(null);
-
-  const handleSend = async () => {
-    const emailList = emails
-      .split(/[\n,;]+/)
-      .map(e => e.trim().toLowerCase())
-      .filter(e => e.includes("@") && e.includes("."));
-    if (!emailList.length) return;
-    setSending(true);
-    const redirectUrl = `${window.location.origin}${window.location.pathname}?join=${cls.join_code}`;
-    const out = [];
-    for (const email of emailList) {
-      const { error } = await window._sb.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: redirectUrl },
-      });
-      out.push({ email, ok: !error, msg: error?.message });
-      await new Promise(r => setTimeout(r, 250)); // Rate-Limit vermeiden
-    }
-    setResults(out);
-    setSending(false);
-  };
-
-  const emailCount = emails
-    .split(/[\n,;]+/)
-    .map(e => e.trim())
-    .filter(e => e.includes("@") && e.includes(".")).length;
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 100,
-      background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "flex-end",
-    }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{
-        background: "var(--surface)", borderRadius: "var(--r-lg) var(--r-lg) 0 0",
-        width: "100%", maxHeight: "85vh", display: "flex", flexDirection: "column",
-        paddingBottom: "env(safe-area-inset-bottom, 16px)",
-      }}>
-        <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)" }} />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px 12px" }}>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18 }}>
-            Schüler einladen — {cls.name}
-          </div>
-          <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 14 }} onClick={onClose}>
-            Schließen
-          </button>
-        </div>
-        <div className="scroll" style={{ padding: "0 18px 16px" }}>
-          {!results ? (
-            <>
-              <div className="dim" style={{ fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
-                E-Mail-Adressen eintragen (eine pro Zeile oder per Komma/Semikolon trennen).
-                Jede Schülerin / jeder Schüler erhält automatisch einen Login-Link.
-              </div>
-              <textarea className="field" rows={7}
-                placeholder={"max@schule.ch\nlisa@schule.ch\ntom@schule.ch"}
-                value={emails} onChange={e => setEmails(e.target.value)}
-                style={{ resize: "vertical", fontFamily: "var(--font-ui)", fontSize: 15, lineHeight: 1.6, marginBottom: 14 }} />
-              <button className="btn btn-primary btn-block"
-                disabled={emailCount === 0 || sending}
-                onClick={handleSend}>
-                {sending ? "Wird gesendet …" : `${emailCount} Magic Link${emailCount !== 1 ? "s" : ""} senden`}
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="eyebrow" style={{ marginBottom: 10 }}>Ergebnis</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {results.map((r, i) => (
-                  <div key={i} className="card"
-                    style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10,
-                      borderColor: r.ok ? "var(--correct)" : "var(--wrong)" }}>
-                    <span style={{ fontSize: 18 }}>{r.ok ? "✅" : "❌"}</span>
-                    <div style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{r.email}</div>
-                    {!r.ok && <div className="dim" style={{ fontSize: 12 }}>{r.msg}</div>}
-                  </div>
-                ))}
-              </div>
-              <button className="btn btn-ghost btn-block" style={{ marginTop: 16 }} onClick={onClose}>
-                Fertig
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Klassen-Detail: Listen + Mitglieder ── */
 function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
   const [lists, setLists] = useT(null);
   const [members, setMembers] = useT(null);
   const [tab, setTab] = useT("lists");
-  const [copied, setCopied] = useT(false);
   const [showAssign, setShowAssign] = useT(false);
   const [showAddStudent, setShowAddStudent] = useT(false);
-  const [showBulkInvite, setShowBulkInvite] = useT(false);
   const [showBuiltinVerbs, setShowBuiltinVerbs] = useT(cls.show_builtin_verbs !== false);
   const [verbError, setVerbError] = useT(null);
   const [hideUnlisted, setHideUnlisted] = useT(cls.hide_unlisted_words === true);
-  const link = inviteLink(cls.join_code);
 
   const handleDeleteClass = async () => {
     if (members === null) return;
@@ -623,9 +510,6 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
           onClose={() => setShowAddStudent(false)}
           onAdded={() => { loadMembers(); }} />
       )}
-      {showBulkInvite && (
-        <BulkInviteModal cls={cls} onClose={() => setShowBulkInvite(false)} />
-      )}
 
       {/* Header */}
       <div style={{ padding: "16px 18px 0", flexShrink: 0 }}>
@@ -645,20 +529,6 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
             {verbError}
           </div>
         )}
-
-        {/* Einladungslink */}
-        <div className="card" style={{ padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="eyebrow" style={{ marginBottom: 2 }}>Einladungslink</div>
-            <div style={{ fontSize: 13, color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {link}
-            </div>
-          </div>
-          <button className="btn btn-ghost" style={{ flexShrink: 0, padding: "8px 14px", fontSize: 14 }}
-            onClick={() => copyToClipboard(link, setCopied)}>
-            {copied ? "✓ Kopiert" : "Kopieren"}
-          </button>
-        </div>
 
         {/* Wörter außerhalb der Listen */}
         <label className="card" style={{ padding: "12px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
@@ -747,14 +617,11 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setShowAddStudent(true)}>
                 + Schüler hinzufügen
               </button>
-              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowBulkInvite(true)}>
-                📧 Einladen
-              </button>
             </div>
 
             {members === null ? <Spinner /> : members.length === 0 ? (
               <EmptyState icon="👩‍🎓" title="Noch keine Mitglieder"
-                sub="Füge Schüler manuell hinzu oder sende Einladungs-E-Mails." />
+                sub="Füge Schüler manuell hinzu." />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {members.map((m, i) => (

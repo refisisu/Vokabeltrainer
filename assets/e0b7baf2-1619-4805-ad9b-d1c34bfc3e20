@@ -40,7 +40,6 @@ function App() {
   const [vocUser, setVocUser] = useA(null);
   const [authLoading, setAuthLoading] = useA(true);
   const [inClass, setInClass] = useA(false);
-  const [joinMsg, setJoinMsg] = useA(null);
   const [isOnline, setIsOnline] = useA(navigator.onLine);
 
   // Online/Offline-Erkennung + Flush der Queue wenn wieder online
@@ -80,13 +79,6 @@ function App() {
       setSession(session);
       if (session) {
         await loadVocUser(session.user.id);
-        const code = sessionStorage.getItem("vt_join");
-        if (code) {
-          sessionStorage.removeItem("vt_join");
-          const { className, error } = await joinClass(code, session.user.id);
-          if (!error) setInClass(true);
-          setJoinMsg(error ? "Klasse nicht gefunden." : `Du bist jetzt in: ${className} 🎉`);
-        }
       } else {
         setVocUser(null);
         setInClass(false);
@@ -138,8 +130,6 @@ function App() {
     await window._sb.auth.signOut();
     setScreen(loadState().onboarded ? "home" : "onboarding");
   };
-
-  const joinCode = new URLSearchParams(window.location.search).get("join");
 
   const [state, setState] = useA(loadState);
   const [screen, setScreen] = useA(() => (loadState().onboarded ? "home" : "onboarding"));
@@ -242,7 +232,7 @@ function App() {
         <div className="dim" style={{ fontSize: 15 }}>…</div>
       </div>
     );
-    if (!session) return <AuthScreen joinCode={joinCode} />;
+    if (!session) return <AuthScreen />;
     if (!vocUser) return <VocSetup session={session} onDone={(u) => { setVocUser(u); }} />;
   }
 
@@ -275,14 +265,6 @@ function App() {
           background: "var(--surface-2)", color: "var(--text-dim)", fontSize: 13, fontWeight: 600,
           textAlign: "center", padding: "6px 16px", borderBottom: "1px solid var(--border)" }}>
           Offline – Lernfortschritte werden gespeichert und später synchronisiert
-        </div>
-      )}
-      {joinMsg && (
-        <div onClick={() => setJoinMsg(null)}
-          style={{ position: "absolute", top: isOnline ? 16 : 42, left: 16, right: 16, zIndex: 50,
-            background: "var(--correct-soft)", color: "var(--correct)", borderRadius: "var(--r-md)",
-            padding: "12px 16px", fontSize: 15, fontWeight: 600, textAlign: "center", cursor: "pointer" }}>
-          {joinMsg}
         </div>
       )}
       {view}

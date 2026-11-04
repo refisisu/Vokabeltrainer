@@ -219,7 +219,7 @@ function Home({ state, go, onOpenTheme, vocUser }) {
           <TileBtn icon="list" title="Meine Listen" sub={activeListName || "Alle Wörter"} onClick={() => go("student-lists")} />
         )}
         {vocUser?.role === "teacher" && (
-          <TileBtn icon="list" title="Klassen" sub="Listen & Einladungen" onClick={() => go("teacher")} />
+          <TileBtn icon="list" title="Klassen" sub="Listen & Schüler" onClick={() => go("teacher")} />
         )}
       </div>
     </div>
@@ -490,8 +490,8 @@ function WeekChart({ history }) {
   );
 }
 
-/* ---------------- QR SHARE MODAL ---------------- */
-function QRShareModal({ onClose }) {
+/* ---------------- SHARE LINK MODAL ---------------- */
+function ShareLinkModal({ onClose }) {
   const [copied, setCopied] = useS(false);
   const url = makeParentShareUrl();
   const canShare = !!(navigator.share && url);
@@ -508,10 +508,6 @@ function QRShareModal({ onClose }) {
     navigator.share({ title: "Lernstand – Vokabeltrainer", url }).catch(() => {});
   };
 
-  const qrImgUrl = url
-    ? "https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=" + encodeURIComponent(url)
-    : null;
-
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.48)",
       display: "flex", alignItems: "flex-end", animation: "popIn .2s var(--ease)" }}>
@@ -521,17 +517,8 @@ function QRShareModal({ onClose }) {
         <div style={{ width: 40, height: 5, background: "var(--border)", borderRadius: 99, margin: "0 auto 18px" }} />
         <div className="h2" style={{ marginBottom: 4 }}>Lernstand teilen</div>
         <div className="dim" style={{ fontSize: 14, marginBottom: 18, lineHeight: 1.45 }}>
-          Scanne den QR-Code oder öffne den Link auf dem Eltern-Gerät. Der Link enthält eine Momentaufnahme.
+          Öffne den Link auf dem Eltern-Gerät. Der Link enthält eine Momentaufnahme.
         </div>
-
-        {qrImgUrl && (
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
-            <img src={qrImgUrl} width={180} height={180}
-              style={{ borderRadius: 14, border: "2px solid var(--border)", background: "#fff", display: "block" }}
-              alt="QR Code zum Scannen"
-              onError={e => { e.target.parentElement.style.display = "none"; }} />
-          </div>
-        )}
 
         <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 14px", marginBottom: 14,
           fontSize: 11.5, wordBreak: "break-all", color: "var(--text-dim)", lineHeight: 1.5, fontFamily: "monospace" }}>
@@ -600,7 +587,7 @@ function ParentDashboard({ state, setState, go }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 18px 8px" }}>
         <IconBtn name="back" onClick={() => go("home")} label="Zurück" />
         <div className="display" style={{ flex: 1, textAlign: "center", fontSize: 17, fontWeight: 600 }}>Eltern</div>
-        <IconBtn name="qr" onClick={() => setShowShare(true)} label="Teilen" />
+        <IconBtn name="share" onClick={() => setShowShare(true)} label="Teilen" />
         <IconBtn name="spark" onClick={addChild} label="Kind hinzufügen" />
       </div>
 
@@ -703,7 +690,7 @@ function ParentDashboard({ state, setState, go }) {
         )}
       </div>
 
-      {showShare && <QRShareModal onClose={() => setShowShare(false)} />}
+      {showShare && <ShareLinkModal onClose={() => setShowShare(false)} />}
     </div>
   );
 }
@@ -912,7 +899,7 @@ function Toggle({ label, sub, on, onToggle }) {
   );
 }
 
-/* ---------------- ELTERN-ANSICHT (Read-only, via QR-Link) ---------------- */
+/* ---------------- ELTERN-ANSICHT (Read-only, via Link) ---------------- */
 function ParentReadView({ data }) {
   const [selIdx, setSelIdx] = useS(0);
   const [lang, setLang] = useS("en");
