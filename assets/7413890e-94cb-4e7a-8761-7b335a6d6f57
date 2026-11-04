@@ -99,19 +99,21 @@ function MCQuestion({ q, onResolve, tweaks }) {
 }
 
 /* ---------- TYPE / CLOZE (text input, 2 attempts) ---------- */
-function TypeQuestion({ q, onResolve, tweaks }) {
+function TypeQuestion({ q, onResolve, tweaks, answered }) {
   const [val, setVal] = useStateQ("");
   const [attempt, setAttempt] = useStateQ(0); // 0 first, 1 second
   const [bad, setBad] = useStateQ(false);
   const ref = useRefQ(null);
   useEffectQ(() => { const t = setTimeout(() => ref.current && ref.current.focus(), 250); return () => clearTimeout(t); }, []);
+  useEffectQ(() => { if (answered && ref.current) ref.current.blur(); }, [answered]);
   const isCloze = q.kind === "cloze";
   const submit = (e) => {
     e && e.preventDefault();
     if (!val.trim()) return;
-    if (answerMatches(val, q.correct) || (q.lenient && isCloseSpelling(val, q.correct))) {
+    const exact = answerMatches(val, q.correct);
+    if (exact || (q.lenient && isCloseSpelling(val, q.correct))) {
       tone("correct", tweaks.sound);
-      onResolve({ outcome: attempt === 0 ? "first" : "second", correct: q.correct });
+      onResolve({ outcome: attempt === 0 ? "first" : "second", correct: q.correct, typo: !exact });
       return;
     }
     tone("wrong", tweaks.sound);
@@ -142,17 +144,19 @@ function TypeQuestion({ q, onResolve, tweaks }) {
         </div>
       </div>
       <div className="vt-type-answer" style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
-        {attempt === 1 && (
+        {attempt === 1 && !answered && (
           <div className="pop" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--wrong)" }}>
             <Icon name="x" size={16} /> Fast! Versuch es noch einmal.
           </div>
         )}
-        <input ref={ref} className="field" value={val} onChange={(e) => setVal(e.target.value)}
+        <input ref={ref} className="field" value={val} readOnly={answered} onChange={(e) => setVal(e.target.value)}
           placeholder={q.geo ? "Antwort eintippen…" : "Tippe auf Englisch…"} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck="false"
           style={bad ? { borderColor: "var(--wrong)" } : {}} />
-        <button type="submit" className="btn btn-primary btn-block" disabled={!val.trim()}>
-          Prüfen <Icon name="check" size={20} />
-        </button>
+        {!answered && (
+          <button type="submit" className="btn btn-primary btn-block" disabled={!val.trim()}>
+            Prüfen <Icon name="check" size={20} />
+          </button>
+        )}
       </div>
     </form>
   );
@@ -164,7 +168,8 @@ function formMatches(input, correct) {
   return String(correct || "").split("/").map(s => s.trim()).filter(Boolean)
     .some(alt => answerMatches(input, alt));
 }
-function VerbFormQuestion({ q, onResolve, tweaks }) {
+function VerbFormQuestion({ q, onResolve, tweaks, answered }) {
+  useEffectQ(() => { if (answered && document.activeElement) document.activeElement.blur(); }, [answered]);
   const [past, setPast] = useStateQ("");
   const [participle, setParticiple] = useStateQ("");
   const [attempt, setAttempt] = useStateQ(0); // 0 first, 1 second
@@ -204,26 +209,28 @@ function VerbFormQuestion({ q, onResolve, tweaks }) {
         <div className="dim" style={{ marginTop: 10, fontSize: 15 }}>{verb.de}</div>
       </div>
       <div ref={fieldsRef} className="vt-type-answer" style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
-        {attempt === 1 && (
+        {attempt === 1 && !answered && (
           <div className="pop" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--wrong)" }}>
             <Icon name="x" size={16} /> Fast! Versuch es noch einmal.
           </div>
         )}
         <div>
           <div className="dim" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Simple Past</div>
-          <input ref={pastRef} className="field" value={past} onChange={(e) => setPast(e.target.value)}
+          <input ref={pastRef} className="field" value={past} readOnly={answered} onChange={(e) => setPast(e.target.value)}
             placeholder="z. B. went" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck="false"
             style={badPast ? { borderColor: "var(--wrong)" } : {}} />
         </div>
         <div>
           <div className="dim" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Past Participle</div>
-          <input className="field" value={participle} onChange={(e) => setParticiple(e.target.value)}
+          <input className="field" value={participle} readOnly={answered} onChange={(e) => setParticiple(e.target.value)}
             placeholder="z. B. gone" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck="false"
             style={badParticiple ? { borderColor: "var(--wrong)" } : {}} />
         </div>
-        <button type="submit" className="btn btn-primary btn-block" disabled={!past.trim() || !participle.trim()}>
-          Prüfen <Icon name="check" size={20} />
-        </button>
+        {!answered && (
+          <button type="submit" className="btn btn-primary btn-block" disabled={!past.trim() || !participle.trim()}>
+            Prüfen <Icon name="check" size={20} />
+          </button>
+        )}
       </div>
     </form>
   );
@@ -291,7 +298,7 @@ function MatchQuestion({ q, onResolve, tweaks }) {
 }
 
 /* ---------- FEEDBACK BAR ---------- */
-function FeedbackBar({ status, correct, xp, info, onNext, tweaks }) {
+function FeedbackBar({ status, correct, xp, info, typo, onNext, tweaks }) {
   const ok = status === "first" || status === "second";
   useEffectQ(() => {
     const onKey = (e) => { if (e.key === "Enter") onNext(); };
@@ -299,7 +306,7 @@ function FeedbackBar({ status, correct, xp, info, onNext, tweaks }) {
   }, [onNext]);
   const showConfetti = ok && status === "first" && tweaks.feedbackStyle === "konfetti";
   return (
-    <div className="pop" style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20,
+    <div className="pop" style={{ position: "relative", flexShrink: 0, zIndex: 20,
       background: ok ? "var(--correct-soft)" : "var(--wrong-soft)",
       borderTop: `2px solid ${ok ? "var(--correct)" : "var(--wrong)"}`,
       borderRadius: "var(--r-lg) var(--r-lg) 0 0", padding: "18px 20px calc(18px + env(safe-area-inset-bottom))" }}>
@@ -314,6 +321,7 @@ function FeedbackBar({ status, correct, xp, info, onNext, tweaks }) {
             {ok && xp > 0 && <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 15 }}><Icon name="bolt" size={16} />+{xp}</span>}
           </div>
           {!ok && correct && <div style={{ fontSize: 15, color: "var(--text)", marginTop: 3 }}>Richtig: <b>{correct}</b></div>}
+          {ok && typo && correct && <div style={{ fontSize: 15, color: "var(--text)", marginTop: 3 }}>Richtig geschrieben: <b>{correct}</b></div>}
           {info && <div style={{ fontSize: 13.5, color: "var(--text)", opacity: .78, marginTop: 5, lineHeight: 1.35 }}>{info}</div>}
         </div>
       </div>
@@ -333,7 +341,8 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
   const q = queue[idx];
   const total = queue.length;
 
-  const resolve = ({ outcome, correct, mistakes }) => {
+  const resolve = ({ outcome, correct, mistakes, typo }) => {
+    if (fb) return;
     const r = resultsRef.current;
     let xp = 0;
     if (q.kind === "match") {
@@ -354,7 +363,7 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
     if (mode !== "test") r.leitnerUpdates.push({ id: q.word.id, outcome });
     else r.leitnerUpdates.push({ id: q.word.id, outcome, testOnly: true });
     if (!ok) r.wrongWords.push(q.word.id);
-    setFb({ status: outcome, correct, xp, info: extraInfo(q.word) });
+    setFb({ status: outcome, correct, xp, info: extraInfo(q.word), typo });
   };
 
   const next = () => {
@@ -376,10 +385,10 @@ function Quiz({ queue, mode, tweaks, onFinish, onExit }) {
       </div>
       <div className="scroll vt-quiz-scroll" style={{ padding: "12px 22px 26px", display: "flex" }}>
         <div className="vt-question-wrap" key={idx} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <QComp q={q} onResolve={resolve} tweaks={tweaks} />
+          <QComp q={q} onResolve={resolve} tweaks={tweaks} answered={!!fb} />
         </div>
       </div>
-      {fb && <FeedbackBar status={fb.status} correct={fb.correct} xp={fb.xp} info={fb.info} onNext={next} tweaks={tweaks} />}
+      {fb && <FeedbackBar status={fb.status} correct={fb.correct} xp={fb.xp} info={fb.info} typo={fb.typo} onNext={next} tweaks={tweaks} />}
     </div>
   );
 }
