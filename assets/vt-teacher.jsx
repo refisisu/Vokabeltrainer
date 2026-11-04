@@ -83,7 +83,7 @@ function ClassListView({ session, onSelectClass, onNewClass }) {
 
       {classes.length === 0 ? (
         <EmptyState icon="🏫" title="Noch keine Klasse"
-          sub="Erstelle deine erste Klasse und füge Schülerinnen und Schüler hinzu."
+          sub="Erstelle deine erste Klasse."
           action={<button className="btn btn-primary" onClick={onNewClass}>Klasse erstellen</button>} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -133,7 +133,7 @@ function NewClassForm({ session, onDone, onBack }) {
         <div>
           <div className="h1">Neue Klasse</div>
           <div className="dim" style={{ fontSize: 15, marginTop: 8 }}>
-            Gib deiner Klasse einen Namen. Danach kannst du Schüler hinzufügen.
+            Gib deiner Klasse einen Namen.
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -305,120 +305,12 @@ function AssignListModal({ cls, session, onClose, onAssigned }) {
   );
 }
 
-/* ── Schüler zur Klasse hinzufügen (Bottom Sheet) ── */
-function AddStudentModal({ cls, onClose, onAdded }) {
-  const [search, setSearch] = useT("");
-  const [users, setUsers] = useT([]);
-  const [loading, setLoading] = useT(false);
-  const [adding, setAdding] = useT(null);
-  const [error, setError] = useT(null);
-
-  const handleSearch = async () => {
-    if (!search.trim()) return;
-    setLoading(true); setError(null);
-    const { data: members } = await window._sb
-      .from("voc_class_members")
-      .select("user_id")
-      .eq("class_id", cls.id);
-    const memberIds = (members || []).map(m => m.user_id);
-
-    let query = window._sb
-      .from("voc_users")
-      .select("id, display_name, role")
-      .eq("role", "student")
-      .ilike("display_name", `%${search.trim()}%`)
-      .limit(20);
-
-    const { data, error } = await query;
-    setLoading(false);
-    if (error) { setError(error.message); return; }
-    const notInClass = (data || []).filter(u => !memberIds.includes(u.id));
-    setUsers(notInClass);
-  };
-
-  const addStudent = async (userId) => {
-    setAdding(userId); setError(null);
-    const { error } = await window._sb
-      .from("voc_class_members")
-      .insert({ class_id: cls.id, user_id: userId });
-    setAdding(null);
-    if (error && error.code !== "23505") { setError(error.message); return; }
-    onAdded();
-    setUsers(prev => prev.filter(u => u.id !== userId));
-  };
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 100,
-      background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "flex-end",
-    }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{
-        background: "var(--surface)", borderRadius: "var(--r-lg) var(--r-lg) 0 0",
-        width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column",
-        paddingBottom: "env(safe-area-inset-bottom, 16px)",
-      }}>
-        <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)" }} />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 18px 12px" }}>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18 }}>
-            Schüler hinzufügen
-          </div>
-          <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 14 }} onClick={onClose}>
-            Schließen
-          </button>
-        </div>
-        <div className="scroll" style={{ padding: "0 18px 16px" }}>
-          <div className="dim" style={{ fontSize: 13, marginBottom: 10, lineHeight: 1.5 }}>
-            Nach Namen suchen – nur Schüler, die noch nicht in dieser Klasse sind.
-          </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            <input className="field" type="text" placeholder="Name suchen …"
-              value={search} onChange={e => setSearch(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSearch()}
-              style={{ flex: 1 }} />
-            <button className="btn btn-primary" style={{ padding: "0 18px", fontSize: 15 }}
-              disabled={loading || !search.trim()} onClick={handleSearch}>
-              {loading ? "…" : "Suchen"}
-            </button>
-          </div>
-          {error && (
-            <div style={{ padding: "10px 14px", background: "var(--wrong-soft)", color: "var(--wrong)",
-              borderRadius: "var(--r-md)", fontSize: 14, marginBottom: 10 }}>
-              {error}
-            </div>
-          )}
-          {users.length === 0 && !loading && search && (
-            <div className="dim" style={{ textAlign: "center", padding: "20px 0", fontSize: 14 }}>
-              Keine Schüler gefunden.
-            </div>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {users.map(u => (
-              <div key={u.id} className="card"
-                style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 22 }}>🎒</span>
-                <div style={{ flex: 1, fontWeight: 500, fontSize: 15 }}>{u.display_name}</div>
-                <button className="btn btn-primary" style={{ padding: "8px 16px", fontSize: 14 }}
-                  disabled={!!adding} onClick={() => addStudent(u.id)}>
-                  {adding === u.id ? "…" : "Hinzufügen"}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Klassen-Detail: Listen + Mitglieder ── */
 function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
   const [lists, setLists] = useT(null);
   const [members, setMembers] = useT(null);
   const [tab, setTab] = useT("lists");
   const [showAssign, setShowAssign] = useT(false);
-  const [showAddStudent, setShowAddStudent] = useT(false);
   const [showBuiltinVerbs, setShowBuiltinVerbs] = useT(cls.show_builtin_verbs !== false);
   const [verbError, setVerbError] = useT(null);
   const [hideUnlisted, setHideUnlisted] = useT(cls.hide_unlisted_words === true);
@@ -504,11 +396,6 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
         <AssignListModal cls={cls} session={session}
           onClose={() => setShowAssign(false)}
           onAssigned={() => { setShowAssign(false); loadLists(); }} />
-      )}
-      {showAddStudent && (
-        <AddStudentModal cls={cls}
-          onClose={() => setShowAddStudent(false)}
-          onAdded={() => { loadMembers(); }} />
       )}
 
       {/* Header */}
@@ -613,15 +500,9 @@ function ClassDetailView({ cls, session, onBack, onNewList, onEditList }) {
 
         {tab === "members" && (
           <>
-            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setShowAddStudent(true)}>
-                + Schüler hinzufügen
-              </button>
-            </div>
-
             {members === null ? <Spinner /> : members.length === 0 ? (
               <EmptyState icon="👩‍🎓" title="Noch keine Mitglieder"
-                sub="Füge Schüler manuell hinzu." />
+                sub="Schüler werden zentral in Supabase eingetragen." />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {members.map((m, i) => (
