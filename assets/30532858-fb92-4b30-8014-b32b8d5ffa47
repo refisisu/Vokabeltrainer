@@ -263,6 +263,203 @@ function HomeHeft({ state, go, vocUser, hasWords, dueCount, activeListName }) {
   );
 }
 
+/* ---------------- AVATAR (nur Flat, pro Gerät in localStorage) ---------------- */
+const AVATARS = [
+  { id: "basketball", label: "Basketball" },
+  { id: "pilot", label: "Pilotin" },
+  { id: "cyclist", label: "Radfahrerin" },
+  { id: "swimmer", label: "Schwimmer" },
+  { id: "piano", label: "Klavier" },
+  { id: "dancer", label: "Tänzer" },
+  { id: "astronaut", label: "Astronautin" },
+  { id: "skater", label: "Skater" },
+  { id: "reader", label: "Leseratte" },
+];
+function readAvatar() {
+  try { const id = localStorage.getItem("vt_avatar"); return AVATARS.some(a => a.id === id) ? id : null; } catch (e) { return null; }
+}
+function writeAvatar(id) {
+  try { if (id) localStorage.setItem("vt_avatar", id); else localStorage.removeItem("vt_avatar"); } catch (e) {}
+}
+function avatarSrc(id) { return "design/avatars/" + id + ".jpg"; }
+
+function AvatarImg({ id, size }) {
+  return (
+    <span className="vt-flat-avatar" style={{ width: size, height: size }}>
+      {id ? <img src={avatarSrc(id)} alt="" width={size} height={size} /> : <span className="vt-flat-avatar__empty">+</span>}
+    </span>
+  );
+}
+
+function AvatarSheet({ current, onPick, onClose }) {
+  return (
+    <div className="vt-flat-sheet-bg" onClick={onClose}>
+      <div className="vt-flat-sheet" role="dialog" aria-modal="true" aria-labelledby="vt-avatar-title" onClick={e => e.stopPropagation()}>
+        <div className="vt-flat-row-between">
+          <div id="vt-avatar-title" className="vt-flat-h2">Avatar wählen</div>
+          <button className="vt-flat-iconbtn" aria-label="Schließen" onClick={onClose}><Icon name="x" size={20} /></button>
+        </div>
+        <div className="vt-flat-avatar-grid">
+          {AVATARS.map(a => (
+            <button key={a.id} className={"vt-flat-avatar-pick" + (current === a.id ? " is-on" : "")}
+              aria-label={a.label} aria-pressed={current === a.id} onClick={() => onPick(a.id)}>
+              <img src={avatarSrc(a.id)} alt="" />
+              {current === a.id && <span className="vt-flat-avatar-pick__check"><Icon name="check" size={14} /></span>}
+            </button>
+          ))}
+        </div>
+        {current && <button className="vt-flat-btn vt-flat-btn--soft" onClick={() => onPick(null)}>Ohne Avatar</button>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- HOME: MODERN FLAT ---------------- */
+function HomeFlat({ state, go, vocUser, hasWords, dueCount, activeListName }) {
+  const dist = masteryDistribution(state);
+  const labels = ["Neu", "Geübt", "Sicher", "Stark", "Gemeistert"];
+  const week = weeklyActivity(state);
+  const practicedDays = week.filter(d => d.count > 0).length;
+  const today = new Date().toISOString().slice(0, 10);
+  const doneToday = (state.history || []).some(h => h.date === today && h.mode !== "test" && h.mode !== "verbs");
+  const showVerbs = state.language === "en" && currentVerbs().length > 0;
+  const [offline, setOffline] = useS(typeof navigator !== "undefined" && navigator.onLine === false);
+  useE(() => {
+    const on = () => setOffline(false), off = () => setOffline(true);
+    window.addEventListener("online", on); window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+  const more = [
+    { icon: "list", title: "Wortschatz", target: "overview" },
+    { icon: "trophy", title: "Bestenliste", target: "leaderboard" },
+    vocUser?.role === "student" && { icon: "list", title: "Meine Listen", value: activeListName || "Alle Wörter", target: "student-lists" },
+    hasGeography() && { icon: "spark", title: state.language === GEO_LANG ? "Zu Englisch" : "Zu Geographie", target: "switch-subject" },
+    { icon: "target", title: "Eltern", target: "parent" },
+    vocUser?.role === "teacher" && { icon: "list", title: "Klassen", target: "teacher" },
+    { icon: "gear", title: "Einstellungen", target: "settings" },
+  ].filter(Boolean);
+  const name = state.name ? ", " + state.name : "";
+  const [avatar, setAvatar] = useS(readAvatar);
+  const [pickAvatar, setPickAvatar] = useS(false);
+
+  return (
+    <div className="scroll vt-flat-home">
+      {pickAvatar && <AvatarSheet current={avatar}
+        onPick={id => { writeAvatar(id); setAvatar(id); setPickAvatar(false); }}
+        onClose={() => setPickAvatar(false)} />}
+      <header className="vt-flat-top">
+        <div className="vt-flat-brand">
+          <img src="icons/icon-192.png" alt="" width="32" height="32" />
+          <span>Vokabeltrainer</span>
+        </div>
+        <div className="vt-flat-top__right">
+          <span className="vt-flat-pill vt-flat-pill--streak" title="Streak">
+            <Icon name="flame" size={15} />{state.streak === 1 ? "1 Tag" : state.streak + " Tage"}
+          </span>
+          <button className="vt-flat-iconbtn" aria-label="Einstellungen" onClick={() => go("settings")}><Icon name="gear" size={20} /></button>
+        </div>
+      </header>
+
+      {offline && <div className="vt-flat-offline">Offline – dein Fortschritt wird später abgeglichen</div>}
+
+      <section className="vt-flat-card">
+        <div className="vt-flat-row-between">
+          <div className="vt-flat-hello">
+            <button className="vt-flat-avatar-btn" aria-label={avatar ? "Avatar ändern" : "Avatar wählen"} onClick={() => setPickAvatar(true)}>
+              <AvatarImg id={avatar} size={56} />
+            </button>
+            <div style={{ minWidth: 0 }}>
+              <div className="vt-flat-eyebrow">Vokabel-Entdecker</div>
+              <h1 className="vt-flat-h1">{greeting()}{name}!</h1>
+            </div>
+          </div>
+          <span className="vt-flat-tag">{languageShort(state.language)}</span>
+        </div>
+        <div className="vt-flat-stats">
+          <div className="vt-flat-stat vt-flat-stat--orange"><b><Icon name="flame" size={16} />{state.streak}</b><span>Tage Streak</span></div>
+          <div className="vt-flat-stat vt-flat-stat--primary"><b><Icon name="bolt" size={16} />{state.xp}</b><span>XP</span></div>
+          <div className="vt-flat-stat vt-flat-stat--green"><b><Icon name="check" size={16} />{dist[4]}</b><span>Gemeistert</span></div>
+        </div>
+      </section>
+
+      <section className={"vt-flat-card" + (doneToday ? " vt-flat-card--soft" : "")}>
+        <div className="vt-flat-row-between" style={{ alignItems: "flex-start" }}>
+          <div>
+            <div className="vt-flat-h2">Heutige Übung</div>
+            <div className="vt-flat-sub">
+              {!hasWords ? "Für diese Sprache ist noch keine Liste gespeichert." : doneToday ? "Heute schon geübt ✓" : dueCount + " Wörter dran · ca. 5 Minuten"}
+            </div>
+          </div>
+          {activeListName && <span className="vt-flat-tag vt-flat-tag--primary">{activeListName}</span>}
+        </div>
+        <button className={"vt-flat-btn " + (doneToday ? "vt-flat-btn--soft" : "vt-flat-btn--primary")} disabled={!hasWords} onClick={() => go("session")}>
+          <Icon name="play" size={18} /> {!hasWords ? "CSV importieren" : doneToday ? "Noch eine Runde" : "Session starten"}
+        </button>
+      </section>
+
+      <section className="vt-flat-card">
+        <div className="vt-flat-row-between">
+          <div>
+            <div className="vt-flat-h2">Dein Wortschatz</div>
+            <div className="vt-flat-sub">5 Stufen nach dem Leitner-System</div>
+          </div>
+          <span className="vt-flat-tag">{TOTAL_WORDS} Wörter</span>
+        </div>
+        <div className="vt-flat-levels" role="img" aria-label={labels.map((l, i) => dist[i] + " " + l).join(", ")}>
+          {labels.map((l, i) => (
+            <div key={l} className={"vt-flat-level" + (i === 4 ? " vt-flat-level--top" : "")}>
+              <span>{l}</span><b>{dist[i]}</b>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="vt-flat-duo">
+        {showVerbs && (
+          <button className="vt-flat-card vt-flat-tile" onClick={() => go("verbs")}>
+            <span className="vt-flat-tile__icon vt-flat-tile__icon--orange"><Icon name="book" size={20} /></span>
+            <span className="vt-flat-h3">Unregelmäßige Verben</span>
+            <span className="vt-flat-sub">Simple Past & Participle</span>
+            <span className="vt-flat-btn vt-flat-btn--soft vt-flat-btn--sm">Üben <Icon name="arrowR" size={16} /></span>
+          </button>
+        )}
+        <button className="vt-flat-card vt-flat-tile" onClick={() => go("test")}>
+          <span className="vt-flat-tile__icon"><Icon name="stethoscope" size={20} /></span>
+          <span className="vt-flat-h3">Test-Modus</span>
+          <span className="vt-flat-sub">Wie gut sitzen deine Wörter? Ohne Wertung.</span>
+          <span className="vt-flat-btn vt-flat-btn--soft vt-flat-btn--sm">Testen <Icon name="arrowR" size={16} /></span>
+        </button>
+      </div>
+
+      <section className="vt-flat-card">
+        <div className="vt-flat-row-between">
+          <div className="vt-flat-h2">Letzte 7 Tage</div>
+          <span className="vt-flat-sub vt-flat-sub--green">{practicedDays} von 7 Tagen geübt</span>
+        </div>
+        <div className="vt-flat-week">
+          {week.map((d, i) => (
+            <div key={d.date} className={"vt-flat-day" + (d.count > 0 ? " is-done" : "") + (i === week.length - 1 ? " is-today" : "")}>
+              <span>{d.label}</span>
+              <i>{d.count > 0 ? <Icon name="check" size={14} /> : null}</i>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <nav className="vt-flat-card vt-flat-list" aria-label="Mehr">
+        {more.map(m => (
+          <button key={m.target} className="vt-flat-listrow" onClick={() => go(m.target)}>
+            <Icon name={m.icon} size={20} />
+            <span className="vt-flat-listrow__t">{m.title}</span>
+            {m.value && <span className="vt-flat-tag vt-flat-tag--primary">{m.value}</span>}
+            <Icon name="chevron" size={18} />
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
 /* ---------------- HOME ---------------- */
 function Home({ state, go, onOpenTheme, vocUser }) {
   const hasWords = TOTAL_WORDS > 0;
@@ -271,6 +468,7 @@ function Home({ state, go, onOpenTheme, vocUser }) {
     ? (() => { try { return JSON.parse(localStorage.getItem("vt_active_list"))?.name || null; } catch (e) { return null; } })()
     : null;
   if (readDesign() === "heft") return <HomeHeft state={state} go={go} vocUser={vocUser} hasWords={hasWords} dueCount={dueCount} activeListName={activeListName} />;
+  if (readDesign() === "flat") return <HomeFlat state={state} go={go} vocUser={vocUser} hasWords={hasWords} dueCount={dueCount} activeListName={activeListName} />;
   return (
     <div className="scroll vt-home" style={{ padding: "6px 18px 30px" }}>
       <div className="vt-home-header" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 2px 18px" }}>
@@ -808,7 +1006,9 @@ function MiniMetric({ value, label }) {
 function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak, onLogout }) {
   const [name, setName] = useS(state.name);
   const [resetText, setResetText] = useS("");
-  const [design, setDesign] = useS(readDesign() === "heft" ? "heft" : "classic");
+  const [design, setDesign] = useS(readDesign() === "heft" || readDesign() === "flat" ? readDesign() : "classic");
+  const [avatar, setAvatar] = useS(readAvatar);
+  const [pickAvatar, setPickAvatar] = useS(false);
   const csvRef = useR(null);
   const backupRef = useR(null);
   const [msg, setMsg] = useS("");
@@ -885,6 +1085,17 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak, onLogout
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
             <input className="field" style={{ fontSize: 16, padding: "12px 16px" }} value={name} maxLength={16} onChange={e => setName(e.target.value)} onBlur={saveName} placeholder="Dein Name" />
           </div>
+          {design === "flat" && (
+            <button className="vt-flat-avatar-row" onClick={() => setPickAvatar(true)}>
+              <AvatarImg id={avatar} size={44} />
+              <span>Avatar</span>
+              <span className="dim">{avatar ? AVATARS.find(a => a.id === avatar).label : "Keiner"}</span>
+              <Icon name="chevron" size={18} />
+            </button>
+          )}
+          {pickAvatar && <AvatarSheet current={avatar}
+            onPick={id => { writeAvatar(id); setAvatar(id); setPickAvatar(false); }}
+            onClose={() => setPickAvatar(false)} />}
         </Section>
 
         {onLogout && (
@@ -917,8 +1128,9 @@ function Settings({ state, setState, go, onOpenTheme, tweaks, setTweak, onLogout
         </Section>
 
         <Section title="Darstellung">
-          <Row label="Design" value={design === "heft" ? "Neu" : "Alt"} onClick={() => {
-            const next = design === "heft" ? "classic" : "heft";
+          <Row label="Design" value={design === "heft" ? "Heft" : design === "flat" ? "Flat" : "Alt"} onClick={() => {
+            // Reihum: Alt → Heft → Flat → Alt
+            const next = design === "classic" ? "heft" : design === "heft" ? "flat" : "classic";
             chooseDesign(next, state.theme);
             setDesign(next);
           }} chevron />

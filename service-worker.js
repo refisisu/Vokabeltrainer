@@ -1,4 +1,4 @@
-const CACHE_NAME = "vt-cache-v15";
+const CACHE_NAME = "vt-cache-v19";
 
 // Nur wirklich statische Assets (Fonts, Icons) → Cache-First
 const STATIC_ASSETS = [
@@ -9,6 +9,17 @@ const STATIC_ASSETS = [
   "./design/fonts/BricolageGrotesque-Variable.woff2",
   "./design/fonts/AtkinsonHyperlegibleNext-Variable.woff2",
   "./design/fonts/SplineSansMono-Variable.woff2",
+  "./design/fonts/Quicksand-Variable.woff2",
+  "./design/fonts/NunitoSans-Variable.woff2",
+  "./design/avatars/basketball.jpg",
+  "./design/avatars/pilot.jpg",
+  "./design/avatars/cyclist.jpg",
+  "./design/avatars/swimmer.jpg",
+  "./design/avatars/piano.jpg",
+  "./design/avatars/dancer.jpg",
+  "./design/avatars/astronaut.jpg",
+  "./design/avatars/skater.jpg",
+  "./design/avatars/reader.jpg",
   "./assets/0b387a4a-be3f-40c0-8c7d-9666f9956723",
   "./assets/16fc9cff-c18a-457e-8bd4-8066bf3491fa",
   "./assets/5664187e-d766-461a-bacf-8e274a38971b",

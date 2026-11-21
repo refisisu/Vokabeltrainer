@@ -82,6 +82,7 @@ function MCQuestion({ q, onResolve, tweaks }) {
           }
           return (
             <button key={opt} onClick={() => choose(opt)} disabled={locked}
+              className={"vt-opt" + (locked ? (opt === q.correct ? " is-correct" : opt === picked ? " is-wrong" : " is-dim") : "")}
               style={{ textAlign: "left", padding: "17px 18px", borderRadius: "var(--r-md)",
                 border: "2px solid var(--border)", background: "var(--surface)", color: "var(--text)",
                 fontFamily: "var(--font-ui)", fontSize: 19, fontWeight: 500, cursor: locked ? "default" : "pointer",
@@ -215,13 +216,13 @@ function VerbFormQuestion({ q, onResolve, tweaks, answered }) {
           </div>
         )}
         <div>
-          <div className="dim" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Simple Past</div>
+          <div className="dim vt-verb-label" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Simple Past</div>
           <input ref={pastRef} className="field" value={past} readOnly={answered} onChange={(e) => setPast(e.target.value)}
             placeholder="z. B. went" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck="false"
             style={badPast ? { borderColor: "var(--wrong)" } : {}} />
         </div>
         <div>
-          <div className="dim" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Past Participle</div>
+          <div className="dim vt-verb-label" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Past Participle</div>
           <input className="field" value={participle} readOnly={answered} onChange={(e) => setParticiple(e.target.value)}
             placeholder="z. B. gone" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck="false"
             style={badParticiple ? { borderColor: "var(--wrong)" } : {}} />
@@ -265,6 +266,11 @@ function MatchQuestion({ q, onResolve, tweaks }) {
       setTimeout(() => { setWrongPair(null); setSel(null); }, 420);
     }
   };
+  const cardClass = (col, id) => {
+    const isWrong = wrongPair && wrongPair.some(w => w.col === col && w.id === id);
+    return "vt-match-card" + (matched.includes(id) ? " is-matched" : isWrong ? " is-wrong" : sel && sel.col === col && sel.id === id ? " is-sel" : "")
+      + (isWrong && tweaks.shake ? " shake" : "");
+  };
   const cardStyle = (col, id) => {
     const isMatched = matched.includes(id);
     const isSel = sel && sel.col === col && sel.id === id;
@@ -286,10 +292,10 @@ function MatchQuestion({ q, onResolve, tweaks }) {
       </div>
       <div className="vt-match-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
         <div style={{ display: "grid", gap: 10 }}>
-          {left.map(c => <button key={"l" + c.id} className={wrongPair && wrongPair.some(w=>w.id===c.id&&w.col==="l")&&tweaks.shake?"shake":""} onClick={() => tap("l", c.id)} style={cardStyle("l", c.id)} disabled={matched.includes(c.id)}>{c.t}</button>)}
+          {left.map(c => <button key={"l" + c.id} className={cardClass("l", c.id)} onClick={() => tap("l", c.id)} style={cardStyle("l", c.id)} disabled={matched.includes(c.id)}>{c.t}{matched.includes(c.id) && <span className="vt-match-check"><Icon name="check" size={18} /></span>}</button>)}
         </div>
         <div style={{ display: "grid", gap: 10 }}>
-          {right.map(c => <button key={"r" + c.id} className={wrongPair && wrongPair.some(w=>w.id===c.id&&w.col==="r")&&tweaks.shake?"shake":""} onClick={() => tap("r", c.id)} style={cardStyle("r", c.id)} disabled={matched.includes(c.id)}>{c.t}</button>)}
+          {right.map(c => <button key={"r" + c.id} className={cardClass("r", c.id)} onClick={() => tap("r", c.id)} style={cardStyle("r", c.id)} disabled={matched.includes(c.id)}>{c.t}{matched.includes(c.id) && <span className="vt-match-check"><Icon name="check" size={18} /></span>}</button>)}
         </div>
       </div>
       <div className="dim" style={{ marginTop: "auto", textAlign: "center", fontSize: 13 }}>{matched.length} / {pairs.length} Paare</div>
@@ -306,19 +312,19 @@ function FeedbackBar({ status, correct, xp, info, typo, onNext, tweaks }) {
   }, [onNext]);
   const showConfetti = ok && status === "first" && tweaks.feedbackStyle === "konfetti";
   return (
-    <div className="pop vt-heft-feedback" style={{ position: "relative", flexShrink: 0, zIndex: 20,
+    <div className={"pop vt-heft-feedback " + (ok ? "vt-fb--ok" : "vt-fb--bad")} style={{ position: "relative", flexShrink: 0, zIndex: 20,
       background: ok ? "var(--correct-soft)" : "var(--wrong-soft)",
       borderTop: `2px solid ${ok ? "var(--correct)" : "var(--wrong)"}`,
       borderRadius: "var(--r-lg) var(--r-lg) 0 0", padding: "18px 20px calc(18px + env(safe-area-inset-bottom))" }}>
       {showConfetti && <Confetti count={48} duration={650} />}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {tweaks.mascotReact && <div style={{ marginTop: -36 }}><Voki mood={ok ? "cheer" : "sad"} size={64} /></div>}
+        {tweaks.mascotReact && <div className="vt-fb-voki" style={{ marginTop: -36 }}><Voki mood={ok ? "cheer" : "sad"} size={64} /></div>}
         <div style={{ flex: 1 }}>
           <div className="display" style={{ fontSize: 20, fontWeight: 700, color: ok ? "var(--correct)" : "var(--wrong)",
             display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name={ok ? "check" : "x"} size={22} />
             {ok ? (status === "first" ? "Richtig!" : "Geschafft – beim 2. Versuch") : "Nicht ganz"}
-            {ok && xp > 0 && <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 15 }}><Icon name="bolt" size={16} />+{xp}</span>}
+            {ok && xp > 0 && <span className="vt-fb-xp" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 15 }}><Icon name="bolt" size={16} />+{xp}</span>}
           </div>
           {!ok && correct && <div style={{ fontSize: 15, color: "var(--text)", marginTop: 3 }}>Richtig: <b>{correct}</b></div>}
           {ok && typo && correct && <div style={{ fontSize: 15, color: "var(--text)", marginTop: 3 }}>Richtig geschrieben: <b>{correct}</b></div>}

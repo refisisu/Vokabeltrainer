@@ -57,6 +57,8 @@ const LANGUAGES = [
   { id: "geo", name: "Geographie", short: "GEO" },
 ];
 const GEO_LANG = "geo";
+// Fach Geographie ist ausgeblendet. Code, Listen und Lernstände bleiben erhalten; auf true setzen, um es wieder zu zeigen.
+const GEO_ENABLED = false;
 const ASSIGNED_GEO_KEY = "vt_assigned_geo";
 
 // --- Built-in irregular English verbs (separate from imported CSV vocab) ---
@@ -104,16 +106,23 @@ const DESIGN_THEME_COLOR = { city: "#F4EFE3", forest: "#E6DABF", ocean: "#E6EEF2
 function readDesign() {
   try { return localStorage.getItem(DESIGN_KEY); } catch (e) { return null; }
 }
+// Designs: "heft" (Schulheft), "flat" (Modern Flat), sonst das alte Design
+const FLAT_THEME_COLOR = "#F8F9FF";
 function applyDesign(theme) {
-  const heft = readDesign() === "heft";
-  if (heft) {
+  const design = readDesign();
+  if (design === "heft") {
     document.body.dataset.design = "heft";
     document.body.dataset.mode = "auto";
+  } else if (design === "flat") {
+    document.body.dataset.design = "flat";
+    delete document.body.dataset.mode;
   } else {
     delete document.body.dataset.design;
     delete document.body.dataset.mode;
   }
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", heft ? (DESIGN_THEME_COLOR[theme] || DESIGN_THEME_COLOR.city) : "#F2701A");
+  const color = design === "heft" ? (DESIGN_THEME_COLOR[theme] || DESIGN_THEME_COLOR.city)
+    : design === "flat" ? FLAT_THEME_COLOR : "#F2701A";
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", color);
 }
 function chooseDesign(design, theme) {
   try { localStorage.setItem(DESIGN_KEY, design); } catch (e) {}
@@ -233,7 +242,7 @@ function readAssignedGeo() {
   try { return JSON.parse(localStorage.getItem(ASSIGNED_GEO_KEY)) || []; } catch (e) { return []; }
 }
 function hasGeography() {
-  return readAssignedGeo().some(l => (l.rows || []).length > 0);
+  return GEO_ENABLED && readAssignedGeo().some(l => (l.rows || []).length > 0);
 }
 // Geographie erscheint nur bei Kindern, denen eine Geographie-Liste zugewiesen ist.
 function availableLanguages() {
@@ -374,7 +383,8 @@ function readStore() {
 function loadState() {
   try {
     const store = readStore();
-    setActiveLanguage(store.activeLanguage);
+    // Ausgeblendetes Fach nicht öffnen; der Geographie-Lernstand bleibt unter "geo" gespeichert.
+    setActiveLanguage(store.activeLanguage === GEO_LANG && !GEO_ENABLED ? "en" : store.activeLanguage);
     return composeState(store, ACTIVE_LANGUAGE);
   } catch (e) {
     return defaultState();

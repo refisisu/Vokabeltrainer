@@ -666,7 +666,7 @@ function ListEditorView({ cls, list, session, onBack, onSaved }) {
         <div className="eyebrow" style={{ marginBottom: 8 }}>Art der Liste</div>
         {isNew ? (
           <div style={{ display: "flex", background: "var(--surface-2)", borderRadius: "var(--r-md)", padding: 3, marginBottom: 16 }}>
-            {[["vocab", "Vokabeln"], ["irregular_verbs", "Unregelmäßige Verben"], ["geography", "Geographie"]].map(([id, label]) => (
+            {[["vocab", "Vokabeln"], ["irregular_verbs", "Unregelmäßige Verben"]].map(([id, label]) => (
               <button key={id} onClick={() => setKind(id)}
                 style={{ flex: 1, padding: "10px 8px", border: "none", borderRadius: "calc(var(--r-md) - 3px)",
                   fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 14, cursor: "pointer",
